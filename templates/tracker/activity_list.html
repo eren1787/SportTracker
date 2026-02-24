@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+{% block title %}Aktivitelerim – SportTracker{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">Aktivitelerim</h2>
+
+{# Filters #}
+<form method="get" class="row g-2 mb-4">
+  <div class="col-auto">
+    <select name="season" class="form-select form-select-sm">
+      <option value="">Tüm sezonlar</option>
+      {% for s in seasons %}
+      <option value="{{ s.number }}" {% if season_filter == s.number|stringformat:"s" %}selected{% endif %}>
+        Sezon {{ s.number }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="type" class="form-select form-select-sm">
+      <option value="">Tüm türler</option>
+      {% for val, label in activity_choices %}
+      <option value="{{ val }}" {% if type_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-outline-primary">Filtrele</button>
+    <a href="{% url 'activity_list' %}" class="btn btn-sm btn-outline-secondary">Temizle</a>
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Tarih</th>
+          <th>Tür</th>
+          <th>Süre</th>
+          <th>Puan</th>
+          <th>Notlar</th>
+          <th>Sezon</th>
+          <th>Durum</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in page_obj %}
+        <tr>
+          <td>{{ a.date }}</td>
+          <td>
+            <span class="badge bg-{{ a.activity_type|activity_color }}">
+              {{ a.get_activity_type_display }}
+            </span>
+          </td>
+          <td>{{ a.duration_minutes }} dk</td>
+          <td><strong class="text-success">+{{ a.total_points }}</strong></td>
+          <td><small class="text-muted">{{ a.notes|truncatechars:50 }}</small></td>
+          <td>{{ a.season }}</td>
+          <td>
+            {% if a.is_approved %}
+              <span class="badge bg-success">Onaylı</span>
+            {% else %}
+              <span class="badge bg-secondary">Bekliyor</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Pagination #}
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}
+    <li class="page-item">
+      <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">«</a>
+    </li>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+    <li class="page-item {% if num == page_obj.number %}active{% endif %}">
+      <a class="page-link" href="?page={{ num }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">{{ num }}</a>
+    </li>
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">»</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+<div class="mt-2">
+  <a href="{% url 'log_activity' %}" class="btn btn-primary btn-sm">+ Aktivite Ekle</a>
+</div>
+{% endblock %}

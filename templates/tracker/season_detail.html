@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ season }} – SportTracker{% endblock %}
+
+{% block content %}
+<h2 class="mb-1">{{ season }}</h2>
+<p class="text-muted">{{ season.start_date }} – {{ season.end_date }}
+  {% if season.is_active %}<span class="badge bg-success">Aktif</span>{% else %}<span class="badge bg-secondary">Bitti</span>{% endif %}
+  {% if season.winner_team %} — 🏆 <strong>{{ season.winner_team.name }}</strong>{% endif %}
+</p>
+
+<h5 class="mt-4 mb-3">Takım Sıralaması</h5>
+<div class="row g-4">
+  {% for td in team_data %}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between" style="border-left: 4px solid {{ td.team.color_code }};">
+        <span class="fw-bold">{{ td.team.name }}</span>
+        <span class="badge" style="background-color: {{ td.team.color_code }};">{{ td.total }} puan</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Oyuncu</th><th>Puan</th></tr></thead>
+          <tbody>
+            {% for m in td.members %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a href="{% url 'player_profile' m.player.pk %}">{{ m.player.name }}</a></td>
+              <td><strong>{{ m.season_points }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<h5 class="mt-5 mb-3">Meydan Okumalar</h5>
+{% if tags %}
+<table class="table table-sm">
+  <thead>
+    <tr><th>Tarih</th><th>Meydan Okuyan</th><th>Hedef</th><th>Durum</th><th>Bonus/Ceza</th></tr>
+  </thead>
+  <tbody>
+    {% for tag in tags %}
+    <tr>
+      <td>{{ tag.created_at|date:"d.m.Y H:i" }}</td>
+      <td><a href="{% url 'player_profile' tag.tagger.pk %}">{{ tag.tagger.name }}</a></td>
+      <td><a href="{% url 'player_profile' tag.tagged.pk %}">{{ tag.tagged.name }}</a></td>
+      <td>
+        {% if tag.status == 'pending' %}<span class="badge bg-warning text-dark">Bekliyor</span>
+        {% elif tag.status == 'responded' %}<span class="badge bg-success">Yanıtlandı</span>
+        {% else %}<span class="badge bg-secondary">Süresi Doldu</span>{% endif %}
+      </td>
+      <td>
+        {% if tag.bonus_awarded %}<span class="text-success">+1 bonus</span>{% endif %}
+        {% if tag.penalty_applied %}<span class="text-danger">-3 ceza</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">Bu sezonda meydan okuma yok.</p>
+{% endif %}
+
+<a href="{% url 'leaderboard' %}" class="btn btn-outline-secondary btn-sm mt-3">← Sıralama</a>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+{% block title %}Haftalık Hedefler – SportTracker{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">🎯 Haftalık Hedefler</h2>
+
+{% if not season %}
+<div class="alert alert-warning">Aktif sezon bulunmuyor.</div>
+{% else %}
+
+<div class="card mb-4">
+  <div class="card-header fw-bold">
+    {{ season }} – Hafta {{ current_week }}
+    <small class="text-muted ms-2">({{ week_start }} – {{ week_end }})</small>
+  </div>
+  <div class="card-body">
+    <p>Bu hafta kazandığın puan: <strong class="{% if week_pts >= 10 %}text-success{% else %}text-danger{% endif %}">{{ week_pts }}</strong></p>
+    <div class="progress mb-3" style="height: 16px;">
+      <div class="progress-bar {% if week_pts >= 10 %}bg-success{% else %}bg-danger{% endif %}"
+           style="width: {% if week_pts >= 10 %}100{% else %}{% widthratio week_pts 10 100 %}{% endif %}%; max-width:100%;"
+           role="progressbar">{{ week_pts }}/10</div>
+    </div>
+
+    {% if goals %}
+      <ul class="list-group">
+        {% for goal in goals %}
+        {% with met=goals_status|get_item:goal.pk prog=goals_progress|get_item:goal.pk %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            {% if met %}<span class="text-success fs-5">✅</span>
+            {% else %}<span class="text-danger fs-5">❌</span>{% endif %}
+            {{ goal.description }}
+          </div>
+          <div class="text-end">
+            {% if prog %}
+              <span class="badge {% if met %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                {{ prog.current }} / {{ prog.required }}
+              </span>
+            {% endif %}
+          </div>
+        </li>
+        {% endwith %}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mb-0">Bu hafta için hedef tanımlanmamış.</p>
+    {% endif %}
+  </div>
+</div>
+
+<a href="{% url 'log_activity' %}" class="btn btn-primary">+ Aktivite Ekle</a>
+{% endif %}
+{% endblock %}

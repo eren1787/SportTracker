@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Aktivite Ekle – SportTracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card shadow">
+      <div class="card-header fw-bold">⚡ Aktivite Kaydet</div>
+      <div class="card-body">
+
+        {# Points preview badge #}
+        <div class="mb-3">
+          <span class="text-muted">Tahmini puan:</span>
+          <span id="pts-preview" class="badge bg-success fs-6 ms-2">—</span>
+        </div>
+
+        <form method="post" id="activity-form">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
+            {% if field.field.widget.input_type == 'textarea' %}
+              <textarea name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                        class="form-control {% if field.errors %}is-invalid{% endif %}"
+                        rows="2">{{ field.value|default:'' }}</textarea>
+            {% elif field.field.widget.input_type == 'select' %}
+              <select name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                      class="form-select {% if field.errors %}is-invalid{% endif %}">
+                {% for val, label in field.field.choices %}
+                <option value="{{ val }}" {% if field.value == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input type="{{ field.field.widget.input_type }}"
+                     name="{{ field.html_name }}"
+                     id="{{ field.id_for_label }}"
+                     value="{{ field.value|default:'' }}"
+                     class="form-control {% if field.errors %}is-invalid{% endif %}"
+                     {% if field.field.min_value %}min="{{ field.field.min_value }}"{% endif %}>
+            {% endif %}
+            {% for error in field.errors %}
+              <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Aktivite Kaydet</button>
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">İptal</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# Points info card #}
+    <div class="card mt-3">
+      <div class="card-header fw-bold">📊 Puan Tablosu</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Aktivite</th><th>Puan</th><th>Min. Süre</th></tr></thead>
+          <tbody>
+            <tr><td>Antrenmana Katılım</td><td>4</td><td>45 dk</td></tr>
+            <tr><td>Analize Katılım</td><td>4</td><td>45 dk</td></tr>
+            <tr><td>Maç İzleme</td><td>3</td><td>30 dk</td></tr>
+            <tr><td>Farklı Takım Frizbi</td><td>2</td><td>45 dk</td></tr>
+            <tr><td>Üst Vücut Antrenmanı</td><td>2</td><td>45 dk</td></tr>
+            <tr><td>Alt Vücut / Core / HIIT</td><td>3</td><td>45 dk</td></tr>
+            <tr><td>Koşu / Bisiklet / Patlayıcı</td><td>3</td><td>45 dk</td></tr>
+            <tr><td>Farklı Spor</td><td>1</td><td>45 dk</td></tr>
+            <tr><td>Yoga / Pilates / Mobilite</td><td>1</td><td>45 dk</td></tr>
+            <tr><td>HF Disk</td><td>1 puan / 20 dk</td><td>45 dk</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BASE_POINTS = {
+  training: 4, analysis: 4, match_watching: 3, other_team_frisbee: 2,
+  upper_body: 2, lower_body_core_hiit: 3, endurance: 3, other_sport: 1,
+  flexibility: 1,
+};
+const MIN_DURATION = { match_watching: 30 };
+
+function updatePreview() {
+  const type = document.getElementById('id_activity_type').value;
+  const dur = parseInt(document.getElementById('id_duration_minutes').value) || 0;
+  const minDur = MIN_DURATION[type] || 45;
+  const preview = document.getElementById('pts-preview');
+
+  if (dur < minDur) {
+    preview.textContent = `Min. ${minDur} dk gerekli`;
+    preview.className = 'badge bg-danger fs-6 ms-2';
+    return;
+  }
+
+  let pts;
+  if (type === 'hf_disk') {
+    pts = Math.floor(dur / 20);
+  } else {
+    pts = BASE_POINTS[type] || 0;
+  }
+
+  preview.textContent = `+${pts} puan`;
+  preview.className = 'badge bg-success fs-6 ms-2';
+}
+
+document.getElementById('id_activity_type').addEventListener('change', updatePreview);
+document.getElementById('id_duration_minutes').addEventListener('input', updatePreview);
+updatePreview();
+</script>
+{% endblock %}

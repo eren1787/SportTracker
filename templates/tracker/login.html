@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Giriş – SportTracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card shadow">
+      <div class="card-body p-4">
+        <h3 class="card-title text-center mb-4">🏆 SportTracker</h3>
+        <p class="text-center text-muted mb-4">Takım yarışmasına katılmak için adını seç</p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="player_id" class="form-label fw-bold">Oyuncu</label>
+            <select name="player_id" id="player_id" class="form-select form-select-lg" required>
+              <option value="">— Seç —</option>
+              {% for player in players %}
+              <option value="{{ player.pk }}">{{ player.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary btn-lg">Giriş Yap</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
