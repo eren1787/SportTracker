@@ -38,7 +38,6 @@
         <tr>
           <th>Tarih</th>
           <th>Tür</th>
-          <th>Süre</th>
           <th>Puan</th>
           <th>Notlar</th>
           <th>Sezon</th>
@@ -54,7 +53,6 @@
               {{ a.get_activity_type_display }}
             </span>
           </td>
-          <td>{{ a.duration_minutes }} dk</td>
           <td><strong class="text-success">+{{ a.total_points }}</strong></td>
           <td><small class="text-muted">{{ a.notes|truncatechars:50 }}</small></td>
           <td>{{ a.season }}</td>
@@ -67,7 +65,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
         {% endfor %}
       </tbody>
     </table>

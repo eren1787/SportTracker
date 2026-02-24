@@ -93,7 +93,7 @@
       <div class="card-body p-0">
         {% if recent_activities %}
         <table class="table table-sm mb-0">
-          <thead><tr><th>Tarih</th><th>Tür</th><th>Süre</th><th>Puan</th></tr></thead>
+          <thead><tr><th>Tarih</th><th>Tür</th><th>Puan</th></tr></thead>
           <tbody>
             {% for a in recent_activities %}
             <tr>
@@ -103,7 +103,6 @@
                   {{ a.get_activity_type_display }}
                 </span>
               </td>
-              <td>{{ a.duration_minutes }} dk</td>
               <td><strong>+{{ a.total_points }}</strong></td>
             </tr>
             {% endfor %}

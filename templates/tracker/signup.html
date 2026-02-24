@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Kayıt Ol – SportTracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card shadow">
+      <div class="card-body p-4">
+        <h3 class="card-title text-center mb-4">Yeni Oyuncu Kaydı</h3>
+        <p class="text-center text-muted mb-4">Takıma katılmak için adını kaydet</p>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+              <div>{{ error }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label for="{{ form.name.id_for_label }}" class="form-label fw-bold">{{ form.name.label }}</label>
+            <input
+              type="text"
+              name="{{ form.name.html_name }}"
+              id="{{ form.name.id_for_label }}"
+              class="form-control form-control-lg{% if form.name.errors %} is-invalid{% endif %}"
+              value="{{ form.name.value|default:'' }}"
+              maxlength="100"
+              required
+            >
+            {% for error in form.name.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-success btn-lg">Kayıt Ol</button>
+            <a href="{% url 'login' %}" class="btn btn-outline-secondary">Giriş Ekranına Dön</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -6,10 +6,10 @@ from django.db.models import Sum, Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .forms import ActivityForm
+from .forms import ActivityForm, PlayerSignupForm
 from .models import (
     Activity, Player, PointAdjustment, Season, Tag,
-    Team, TeamMembership, WeeklyGoal, ACTIVITY_CHOICES,
+    Team, TeamMembership, WeeklyGoal, ACTIVITY_CHOICES, MIN_DURATION,
 )
 from .services import (
     calculate_points, check_weekly_goals, get_current_week_number,
@@ -59,6 +59,19 @@ def login_view(request):
 
     players = Player.objects.filter(is_active=True).order_by("name")
     return render(request, "tracker/login.html", {"players": players})
+
+
+
+def signup_view(request):
+    form = PlayerSignupForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        player = Player.objects.create(name=form.cleaned_data["name"], is_active=True)
+        request.session["player_id"] = player.pk
+        messages.success(request, "Kayıt oluşturuldu. Hoş geldin!")
+        return redirect("dashboard")
+
+    return render(request, "tracker/signup.html", {"form": form})
 
 
 def logout_view(request):
@@ -180,11 +193,12 @@ def log_activity(request):
         messages.error(request, "Şu an aktif bir sezon bulunmuyor.")
         return redirect("dashboard")
 
-    form = ActivityForm(request.POST or None, initial={"date": date.today()})
+    form = ActivityForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
         activity_type = form.cleaned_data["activity_type"]
-        duration = form.cleaned_data["duration_minutes"]
+        raw_duration = form.cleaned_data.get("duration_minutes")
+        duration = raw_duration if activity_type == "hf_disk" else MIN_DURATION.get(activity_type, 45)
         result = calculate_points(activity_type, duration)
 
         if not result["valid"]:
@@ -194,7 +208,7 @@ def log_activity(request):
                 player=player,
                 season=season,
                 activity_type=activity_type,
-                date=form.cleaned_data["date"],
+                date=date.today(),
                 duration_minutes=duration,
                 notes=form.cleaned_data.get("notes", ""),
                 total_points=result["total"],

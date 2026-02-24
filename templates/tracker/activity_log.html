@@ -17,7 +17,7 @@
         <form method="post" id="activity-form">
           {% csrf_token %}
           {% for field in form %}
-          <div class="mb-3">
+          <div class="mb-3"{% if field.name == "duration_minutes" %} id="duration-field-wrap"{% endif %}>
             <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
             {% if field.field.widget.input_type == 'textarea' %}
               <textarea name="{{ field.html_name }}" id="{{ field.id_for_label }}"
@@ -68,7 +68,7 @@
             <tr><td>Koşu / Bisiklet / Patlayıcı</td><td>3</td><td>45 dk</td></tr>
             <tr><td>Farklı Spor</td><td>1</td><td>45 dk</td></tr>
             <tr><td>Yoga / Pilates / Mobilite</td><td>1</td><td>45 dk</td></tr>
-            <tr><td>HF Disk</td><td>1 puan / 20 dk</td><td>45 dk</td></tr>
+            <tr><td>HF Disk</td><td>1 puan / 20 dk</td><td>20 dk</td></tr>
           </tbody>
         </table>
       </div>
@@ -84,22 +84,36 @@ const BASE_POINTS = {
   upper_body: 2, lower_body_core_hiit: 3, endurance: 3, other_sport: 1,
   flexibility: 1,
 };
-const MIN_DURATION = { match_watching: 30 };
+const MIN_DURATION = { match_watching: 30, hf_disk: 20 };
+
+function toggleDurationField() {
+  const type = document.getElementById('id_activity_type').value;
+  const wrap = document.getElementById('duration-field-wrap');
+  const input = document.getElementById('id_duration_minutes');
+  const show = type === 'hf_disk';
+
+  if (!wrap || !input) return;
+
+  wrap.style.display = show ? '' : 'none';
+  if (!show) {
+    input.value = '';
+    input.classList.remove('is-invalid');
+  }
+}
 
 function updatePreview() {
   const type = document.getElementById('id_activity_type').value;
   const dur = parseInt(document.getElementById('id_duration_minutes').value) || 0;
-  const minDur = MIN_DURATION[type] || 45;
   const preview = document.getElementById('pts-preview');
-
-  if (dur < minDur) {
-    preview.textContent = `Min. ${minDur} dk gerekli`;
-    preview.className = 'badge bg-danger fs-6 ms-2';
-    return;
-  }
 
   let pts;
   if (type === 'hf_disk') {
+    const minDur = MIN_DURATION.hf_disk || 20;
+    if (dur < minDur) {
+      preview.textContent = `Min. ${minDur} dk gerekli`;
+      preview.className = 'badge bg-danger fs-6 ms-2';
+      return;
+    }
     pts = Math.floor(dur / 20);
   } else {
     pts = BASE_POINTS[type] || 0;
@@ -109,8 +123,12 @@ function updatePreview() {
   preview.className = 'badge bg-success fs-6 ms-2';
 }
 
-document.getElementById('id_activity_type').addEventListener('change', updatePreview);
+document.getElementById('id_activity_type').addEventListener('change', () => {
+  toggleDurationField();
+  updatePreview();
+});
 document.getElementById('id_duration_minutes').addEventListener('input', updatePreview);
+toggleDurationField();
 updatePreview();
 </script>
 {% endblock %}

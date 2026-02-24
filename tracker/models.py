@@ -28,6 +28,7 @@ BASE_POINTS = {
 
 MIN_DURATION = {
     "match_watching": 30,
+    "hf_disk": 20,
     # all others: 45
 }
 

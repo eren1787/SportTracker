@@ -16,21 +16,27 @@ from .models import (
 # Points calculation
 # ---------------------------------------------------------------------------
 
-def calculate_points(activity_type: str, duration_minutes: int) -> dict:
+def calculate_points(activity_type: str, duration_minutes: int | None = None) -> dict:
     """
     Returns a dict with keys: valid (bool), total (int), error (str).
 
     For hf_disk: points = duration_minutes // 20  (duration-based).
     For all others: points = fixed BASE_POINTS value (no duration bonus).
-    Minimum duration: 30 min for match_watching, 45 min for everything else.
+    Non-HF activities may omit duration; in that case the minimum duration is
+    assumed automatically.
     """
-    min_dur = MIN_DURATION.get(activity_type, 45)
-    if duration_minutes < min_dur:
-        return {"valid": False, "total": 0, "error": f"Minimum süre {min_dur} dakikadır."}
-
     if activity_type == "hf_disk":
+        if duration_minutes is None:
+            return {"valid": False, "total": 0, "error": "HF Disk için süre girmen gerekli."}
+        min_dur = MIN_DURATION.get(activity_type, 20)
+        if duration_minutes < min_dur:
+            return {"valid": False, "total": 0, "error": f"Minimum süre {min_dur} dakikadır."}
         total = duration_minutes // 20
         return {"valid": True, "total": total, "error": ""}
+
+    min_dur = MIN_DURATION.get(activity_type, 45)
+    if duration_minutes is not None and duration_minutes < min_dur:
+        return {"valid": False, "total": 0, "error": f"Minimum süre {min_dur} dakikadır."}
 
     total = BASE_POINTS.get(activity_type, 0)
     return {"valid": True, "total": total, "error": ""}
