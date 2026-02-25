@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 try:
     import dj_database_url
@@ -105,9 +106,15 @@ DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
 if DATABASE_URL:
     if dj_database_url is None:
         raise RuntimeError("dj-database-url is required when DATABASE_URL is set.")
+    # Supabase pooler URLs include '?supa=base-pooler.new' which is not a valid
+    # PostgreSQL connection option and causes psycopg to raise ProgrammingError.
+    # Strip all query parameters before parsing so only the connection coordinates
+    # (host, port, dbname, user, password) are used.
+    _parsed = urlparse(DATABASE_URL)
+    _clean_url = urlunparse(_parsed._replace(query=""))
     DATABASES = {
         "default": dj_database_url.parse(
-            DATABASE_URL,
+            _clean_url,
             conn_max_age=0,  # better fit for serverless runtimes (Vercel)
             ssl_require=True,
         )
@@ -165,6 +172,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
