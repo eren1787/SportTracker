@@ -12,8 +12,8 @@ from .models import (
     Team, TeamMembership, WeeklyGoal, ACTIVITY_CHOICES, MIN_DURATION,
 )
 from .services import (
-    calculate_points, check_weekly_goals, get_current_week_number,
-    resolve_tag_on_activity, _update_season_points,
+    calculate_points, check_weekly_goals, expire_overdue_tags,
+    get_current_week_number, resolve_tag_on_activity, _update_season_points,
 )
 
 
@@ -93,7 +93,7 @@ def dashboard(request):
 
     membership = None
     week_points = 0
-    recent_activities = []
+    recent_feed = []
     pending_tags_in = []
     pending_tags_out = []
     weekly_goals = []
@@ -102,6 +102,8 @@ def dashboard(request):
     current_week = 1
 
     if season:
+        expire_overdue_tags()  # auto-expire on every dashboard load
+
         membership = TeamMembership.objects.filter(player=player, season=season).first()
         current_week = get_current_week_number(season)
         week_start = season.start_date + timedelta(weeks=current_week - 1)
@@ -120,9 +122,36 @@ def dashboard(request):
         )
         week_points = activity_pts + adjustment_pts
 
-        recent_activities = Activity.objects.filter(
-            player=player, season=season
-        ).order_by("-date", "-created_at")[:5]
+        # Build combined recent feed: activities + point adjustments
+        raw_activities = list(
+            Activity.objects.filter(player=player, season=season)
+            .order_by("-created_at")[:10]
+        )
+        raw_adjustments = list(
+            PointAdjustment.objects.filter(player=player, season=season)
+            .order_by("-created_at")[:10]
+        )
+        feed = []
+        for a in raw_activities:
+            feed.append({
+                "kind": "activity",
+                "timestamp": a.created_at,
+                "date": a.date,
+                "label": a.get_activity_type_display(),
+                "points": a.total_points,
+                "activity_type": a.activity_type,
+            })
+        for adj in raw_adjustments:
+            feed.append({
+                "kind": "adjustment",
+                "timestamp": adj.created_at,
+                "date": adj.created_at.date(),
+                "label": adj.get_reason_display(),
+                "points": adj.points,
+                "activity_type": None,
+            })
+        feed.sort(key=lambda x: x["timestamp"], reverse=True)
+        recent_feed = feed[:7]
 
         now = timezone.now()
         pending_tags_in = Tag.objects.filter(
@@ -168,7 +197,7 @@ def dashboard(request):
         "membership": membership,
         "week_points": week_points,
         "current_week": current_week,
-        "recent_activities": recent_activities,
+        "recent_feed": recent_feed,
         "pending_tags_in": pending_tags_in,
         "pending_tags_out": pending_tags_out,
         "weekly_goals": weekly_goals,
@@ -367,6 +396,7 @@ def tag_list(request):
         return redir
 
     player = _get_player(request)
+    expire_overdue_tags()  # auto-expire on every tag list load
     now = timezone.now()
 
     incoming = Tag.objects.filter(tagged=player).select_related("tagger", "season").order_by("-created_at")
