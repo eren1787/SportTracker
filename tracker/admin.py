@@ -1,5 +1,4 @@
 from django.contrib import admin
-from django.template.response import TemplateResponse
 from .models import (
     Season, Player, Team, TeamMembership,
     WeeklyGoal, Activity, Tag, PointAdjustment,
@@ -29,69 +28,42 @@ class PlayerAdmin(admin.ModelAdmin):
     list_display = ["name", "is_active", "total_points", "joined_date"]
     list_editable = ["is_active"]
     search_fields = ["name"]
-    actions = ["assign_to_team"]
 
-    def assign_to_team(self, request, queryset):
-        # Second step: form submitted with 'apply' button
-        if "apply" in request.POST:
-            team_id = request.POST.get("team")
-            season_id = request.POST.get("season")
-            player_ids = request.POST.getlist("player_ids")
 
-            try:
-                team = Team.objects.get(pk=team_id)
-                season = Season.objects.get(pk=season_id)
-            except (Team.DoesNotExist, Season.DoesNotExist):
-                self.message_user(request, "Geçersiz takım veya sezon seçimi.", level="error")
-                return
+class TeamMembershipInline(admin.TabularInline):
+    model = TeamMembership
+    # Only expose the player; season is auto-filled from the team on save
+    fields = ["player", "season_points"]
+    autocomplete_fields = ["player"]
+    extra = 8  # empty rows ready to fill in one go
 
-            players = Player.objects.filter(pk__in=player_ids)
-            created = updated = 0
-            for player in players:
-                obj, was_created = TeamMembership.objects.get_or_create(
-                    player=player,
-                    season=season,
-                    defaults={"team": team},
-                )
-                if was_created:
-                    created += 1
-                else:
-                    obj.team = team
-                    obj.save()
-                    updated += 1
-
-            self.message_user(
-                request,
-                f"{created} yeni üyelik oluşturuldu, {updated} üyelik güncellendi → {team.name}.",
-            )
-            return
-
-        # First step: render intermediate selection page
-        return TemplateResponse(
-            request,
-            "admin/tracker/player/assign_team.html",
-            {
-                "players": queryset,
-                "seasons": Season.objects.all(),
-                "teams": Team.objects.select_related("season").order_by("season", "name"),
-                "opts": self.model._meta,
-                "title": "Takıma Ata",
-            },
-        )
-
-    assign_to_team.short_description = "Seçili oyuncuları takıma ata"
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("player")
 
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
     list_display = ["name", "season", "captain", "color_code"]
     list_filter = ["season"]
+    inlines = [TeamMembershipInline]
+
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for instance in instances:
+            if isinstance(instance, TeamMembership) and not instance.season_id:
+                # Auto-populate season from the parent team
+                instance.season = instance.team.season
+            instance.save()
+        for obj in formset.deleted_objects:
+            obj.delete()
+        formset.save_m2m()
 
 
 @admin.register(TeamMembership)
 class TeamMembershipAdmin(admin.ModelAdmin):
     list_display = ["player", "team", "season", "season_points"]
     list_filter = ["season", "team"]
+    search_fields = ["player__name"]
 
 
 @admin.register(WeeklyGoal)
