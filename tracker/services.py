@@ -118,6 +118,7 @@ def expire_overdue_tags() -> int:
         tag.penalty_applied = True
         tag.save()
 
+        week_number = get_current_week_number(tag.season)
         PointAdjustment.objects.create(
             player=tag.tagged,
             season=tag.season,
@@ -125,6 +126,7 @@ def expire_overdue_tags() -> int:
             points=-3,
             description=f"{tag.tagger.name} meydan okuma cezası",
             related_tag=tag,
+            week_number=week_number,
         )
         _update_season_points(tag.tagged, tag.season, -3)
         count += 1
