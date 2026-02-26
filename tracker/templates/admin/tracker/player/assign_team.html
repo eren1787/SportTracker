@@ -1,0 +1,91 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Takıma Ata{% endblock %}
+
+{% block content %}
+<h1>Seçili Oyuncuları Takıma Ata</h1>
+
+<p>Aşağıdaki <strong>{{ players|length }}</strong> oyuncu seçili:</p>
+
+<ul>
+  {% for player in players %}
+    <li>{{ player.name }}</li>
+  {% endfor %}
+</ul>
+
+<form method="post">
+  {% csrf_token %}
+
+  {# Pass selected player PKs through the form #}
+  {% for player in players %}
+    <input type="hidden" name="player_ids" value="{{ player.pk }}">
+  {% endfor %}
+
+  {# Required by Django admin action processing #}
+  <input type="hidden" name="action" value="assign_to_team">
+
+  <fieldset class="module aligned">
+    <div class="form-row">
+      <div class="flex-container">
+        <label for="id_season"><strong>Sezon:</strong></label>
+        <select name="season" id="id_season" required style="margin-left:8px; min-width:200px;">
+          <option value="">— Sezon Seç —</option>
+          {% for season in seasons %}
+            <option value="{{ season.pk }}">{{ season }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-top:12px;">
+      <div class="flex-container">
+        <label for="id_team"><strong>Takım:</strong></label>
+        <select name="team" id="id_team" required style="margin-left:8px; min-width:200px;">
+          <option value="">— Önce sezon seçin —</option>
+          {% for team in teams %}
+            <option value="{{ team.pk }}" data-season="{{ team.season_id }}">
+              {{ team.name }} ({{ team.season }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </fieldset>
+
+  <div style="margin-top:20px;">
+    <input type="submit" name="apply" value="Takıma Ata" class="default" style="margin-right:8px;">
+    <a href="../" class="button cancel-link">İptal</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  const seasonSelect = document.getElementById('id_season');
+  const teamSelect = document.getElementById('id_team');
+  const allTeamOptions = Array.from(teamSelect.querySelectorAll('option[data-season]'));
+
+  function filterTeams() {
+    const seasonId = seasonSelect.value;
+    // Remove all team options except the placeholder
+    allTeamOptions.forEach(opt => opt.remove());
+    teamSelect.querySelector('option[value=""]').textContent = '— Takım Seç —';
+
+    if (!seasonId) {
+      teamSelect.querySelector('option[value=""]').textContent = '— Önce sezon seçin —';
+      return;
+    }
+
+    const matching = allTeamOptions.filter(opt => opt.dataset.season === seasonId);
+    matching.forEach(opt => teamSelect.appendChild(opt));
+
+    if (matching.length === 0) {
+      teamSelect.querySelector('option[value=""]').textContent = 'Bu sezonda takım yok';
+    }
+  }
+
+  seasonSelect.addEventListener('change', filterTeams);
+  filterTeams(); // run once on load
+})();
+</script>
+{% endblock %}

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.template.response import TemplateResponse
 from .models import (
     Season, Player, Team, TeamMembership,
     WeeklyGoal, Activity, Tag, PointAdjustment,
@@ -28,6 +29,57 @@ class PlayerAdmin(admin.ModelAdmin):
     list_display = ["name", "is_active", "total_points", "joined_date"]
     list_editable = ["is_active"]
     search_fields = ["name"]
+    actions = ["assign_to_team"]
+
+    def assign_to_team(self, request, queryset):
+        # Second step: form submitted with 'apply' button
+        if "apply" in request.POST:
+            team_id = request.POST.get("team")
+            season_id = request.POST.get("season")
+            player_ids = request.POST.getlist("player_ids")
+
+            try:
+                team = Team.objects.get(pk=team_id)
+                season = Season.objects.get(pk=season_id)
+            except (Team.DoesNotExist, Season.DoesNotExist):
+                self.message_user(request, "Geçersiz takım veya sezon seçimi.", level="error")
+                return
+
+            players = Player.objects.filter(pk__in=player_ids)
+            created = updated = 0
+            for player in players:
+                obj, was_created = TeamMembership.objects.get_or_create(
+                    player=player,
+                    season=season,
+                    defaults={"team": team},
+                )
+                if was_created:
+                    created += 1
+                else:
+                    obj.team = team
+                    obj.save()
+                    updated += 1
+
+            self.message_user(
+                request,
+                f"{created} yeni üyelik oluşturuldu, {updated} üyelik güncellendi → {team.name}.",
+            )
+            return
+
+        # First step: render intermediate selection page
+        return TemplateResponse(
+            request,
+            "admin/tracker/player/assign_team.html",
+            {
+                "players": queryset,
+                "seasons": Season.objects.all(),
+                "teams": Team.objects.select_related("season").order_by("season", "name"),
+                "opts": self.model._meta,
+                "title": "Takıma Ata",
+            },
+        )
+
+    assign_to_team.short_description = "Seçili oyuncuları takıma ata"
 
 
 @admin.register(Team)
