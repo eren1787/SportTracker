@@ -225,6 +225,25 @@ def dashboard(request):
             tagger=player, season=season, status="pending"
         ).select_related("tagged")
 
+        # Challenge right indicator for the dashboard button
+        can_tag, _ = can_player_challenge(player, season)
+        challenge_expires_at = None
+        if can_tag:
+            window_start = now - timedelta(minutes=30)
+            last_sent = (
+                Tag.objects.filter(tagger=player, season=season)
+                .order_by("-created_at").first()
+            )
+            qs = Activity.objects.filter(
+                player=player, season=season, is_approved=True,
+                created_at__gte=window_start,
+            )
+            if last_sent:
+                qs = qs.filter(created_at__gt=last_sent.created_at)
+            qualifying = qs.order_by("-created_at").first()
+            if qualifying:
+                challenge_expires_at = qualifying.created_at + timedelta(minutes=30)
+
         weekly_goals = WeeklyGoal.objects.filter(season=season, week_number=current_week)
         for goal in weekly_goals:
             if goal.activity_type:
@@ -267,6 +286,8 @@ def dashboard(request):
         "weekly_goals": weekly_goals,
         "goals_status": goals_status,
         "team_standings": team_standings,
+        "can_tag": can_tag,
+        "challenge_expires_at": challenge_expires_at,
     })
 
 

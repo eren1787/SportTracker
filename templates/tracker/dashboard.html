@@ -9,6 +9,19 @@
 <div class="alert alert-warning">Şu an aktif bir sezon bulunmuyor.</div>
 {% else %}
 
+{% if can_tag %}
+<div class="alert alert-success d-flex align-items-center justify-content-between mb-4 p-3">
+  <div class="d-flex align-items-center gap-3">
+    <span style="font-size:1.8rem;">⚡</span>
+    <div>
+      <strong class="fs-5">Meydan okuma hakkın var!</strong><br>
+      <span class="text-muted small">Kalan süre: <strong id="dash-challenge-countdown" data-expires="{{ challenge_expires_at.isoformat }}">…</strong></span>
+    </div>
+  </div>
+  <a href="{% url 'tag_player' %}" class="btn btn-danger btn-lg fw-bold">🎯 Meydan Oku</a>
+</div>
+{% endif %}
+
 <div class="row g-4">
 
   {# --- This week's points --- #}
@@ -176,8 +189,9 @@
 
 {% block extra_js %}
 <script>
-// Live countdown timers for tag expiry
+// Live countdown for tag expiry (incoming challenges)
 document.querySelectorAll('[data-expires]').forEach(el => {
+  if (el.id === 'dash-challenge-countdown') return; // handled separately
   function update() {
     const expires = new Date(el.dataset.expires);
     const diff = expires - new Date();
@@ -189,5 +203,26 @@ document.querySelectorAll('[data-expires]').forEach(el => {
   update();
   setInterval(update, 30000);
 });
+
+// 30-minute challenge window countdown
+const dashCountdown = document.getElementById('dash-challenge-countdown');
+if (dashCountdown) {
+  function updateDash() {
+    const expires = new Date(dashCountdown.dataset.expires);
+    const diff = expires - new Date();
+    if (diff <= 0) {
+      dashCountdown.textContent = 'Süre doldu!';
+      const btn = document.querySelector('a[href*="meydan-oku"]');
+      if (btn) { btn.classList.replace('btn-danger', 'btn-secondary'); btn.textContent = '⏳ Süre Doldu'; }
+      return;
+    }
+    const m = Math.floor(diff / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    dashCountdown.textContent = m + ' dk ' + s + ' sn';
+    if (diff < 60000) dashCountdown.style.color = 'red';
+    setTimeout(updateDash, 1000);
+  }
+  updateDash();
+}
 </script>
 {% endblock %}
