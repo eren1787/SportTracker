@@ -171,7 +171,7 @@
         {% for ts in team_standings %}
         <div class="p-3 {% if not forloop.last %}border-bottom{% endif %}">
           <h6 class="mb-2 d-flex align-items-center gap-2">
-            <span class="badge" style="background-color:{{ ts.team.color_code }}; font-size:.85rem;">{{ ts.team.name }}</span>
+            <span class="badge" style="background-color:{{ ts.team.color_code }}; color:{{ ts.team.color_code|text_color }}; font-size:.85rem;">{{ ts.team.name }}</span>
             <span class="text-muted fw-normal small">{{ ts.total }} puan</span>
             {% if ts.team.captain %}<span class="text-muted fw-normal small">— Kaptan: {{ ts.team.captain.name }}</span>{% endif %}
           </h6>

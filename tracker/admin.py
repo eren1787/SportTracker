@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from .models import (
     Season, Player, Team, TeamMembership,
     WeeklyGoal, Activity, Tag, PointAdjustment,
@@ -41,8 +42,21 @@ class TeamMembershipInline(admin.TabularInline):
         return super().get_queryset(request).select_related("player")
 
 
+class TeamAdminForm(forms.ModelForm):
+    color_code = forms.ChoiceField(
+        choices=Team.COLOR_CHOICES,
+        widget=forms.RadioSelect,
+        label="Renk",
+    )
+
+    class Meta:
+        model = Team
+        fields = "__all__"
+
+
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
+    form = TeamAdminForm
     list_display = ["name", "season", "captain", "color_code"]
     list_filter = ["season"]
     inlines = [TeamMembershipInline]

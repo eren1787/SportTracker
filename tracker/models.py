@@ -67,6 +67,11 @@ class Player(models.Model):
 
 
 class Team(models.Model):
+    COLOR_CHOICES = [
+        ("#8C1C2C", "Bordo"),
+        ("#F5EAED", "Beyaz"),
+    ]
+
     name = models.CharField(max_length=100)
     season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name="teams")
     captain = models.ForeignKey(
@@ -76,7 +81,7 @@ class Team(models.Model):
         on_delete=models.SET_NULL,
         related_name="captained_teams",
     )
-    color_code = models.CharField(max_length=7, default="#FF0000")
+    color_code = models.CharField(max_length=7, choices=COLOR_CHOICES, default="#8C1C2C")
 
     class Meta:
         unique_together = [("name", "season")]
