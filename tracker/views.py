@@ -12,8 +12,9 @@ from .models import (
     Team, TeamMembership, WeeklyGoal, ACTIVITY_CHOICES, MIN_DURATION,
 )
 from .services import (
-    calculate_points, check_weekly_goals, expire_overdue_tags,
-    get_current_week_number, resolve_tag_on_activity, _update_season_points,
+    calculate_points, can_player_challenge, check_weekly_goals,
+    expire_overdue_tags, get_current_week_number, resolve_tag_on_activity,
+    _update_season_points,
 )
 
 
@@ -122,15 +123,28 @@ def dashboard(request):
         )
         week_points = activity_pts + adjustment_pts
 
-        # Build combined recent feed: activities + point adjustments
+        # Build combined recent feed: own activities + adjustments + tags + opponent activities
+        _STATUS_TR = {"pending": "Bekliyor", "responded": "Yanıtlandı", "expired": "Süresi Doldu"}
+
         raw_activities = list(
             Activity.objects.filter(player=player, season=season)
-            .order_by("-created_at")[:10]
+            .order_by("-created_at")[:12]
         )
         raw_adjustments = list(
             PointAdjustment.objects.filter(player=player, season=season)
             .order_by("-created_at")[:10]
         )
+        raw_tags_sent = list(
+            Tag.objects.filter(tagger=player, season=season)
+            .select_related("tagged")
+            .order_by("-created_at")[:8]
+        )
+        raw_tags_received = list(
+            Tag.objects.filter(tagged=player, season=season)
+            .select_related("tagger")
+            .order_by("-created_at")[:8]
+        )
+
         feed = []
         for a in raw_activities:
             feed.append({
@@ -140,6 +154,8 @@ def dashboard(request):
                 "label": a.get_activity_type_display(),
                 "points": a.total_points,
                 "activity_type": a.activity_type,
+                "player_name": None,
+                "player_id": None,
             })
         for adj in raw_adjustments:
             feed.append({
@@ -149,9 +165,57 @@ def dashboard(request):
                 "label": adj.get_reason_display(),
                 "points": adj.points,
                 "activity_type": None,
+                "player_name": None,
+                "player_id": None,
             })
+        for tag in raw_tags_sent:
+            feed.append({
+                "kind": "tag_sent",
+                "timestamp": tag.created_at,
+                "date": tag.created_at.date(),
+                "label": f"{tag.tagged.name}'e meydan okudun",
+                "status_label": _STATUS_TR.get(tag.status, tag.status),
+                "points": None,
+                "activity_type": None,
+                "player_name": tag.tagged.name,
+                "player_id": tag.tagged.pk,
+            })
+        for tag in raw_tags_received:
+            feed.append({
+                "kind": "tag_received",
+                "timestamp": tag.created_at,
+                "date": tag.created_at.date(),
+                "label": f"{tag.tagger.name} sana meydan okudu",
+                "status_label": _STATUS_TR.get(tag.status, tag.status),
+                "points": None,
+                "activity_type": None,
+                "player_name": tag.tagger.name,
+                "player_id": tag.tagger.pk,
+            })
+
+        # Opponent activities
+        if membership:
+            opp_player_ids = list(
+                TeamMembership.objects.filter(season=season)
+                .exclude(team=membership.team)
+                .values_list("player_id", flat=True)
+            )
+            for a in Activity.objects.filter(
+                player_id__in=opp_player_ids, season=season, is_approved=True
+            ).select_related("player").order_by("-created_at")[:12]:
+                feed.append({
+                    "kind": "opponent_activity",
+                    "timestamp": a.created_at,
+                    "date": a.date,
+                    "label": a.get_activity_type_display(),
+                    "points": a.total_points,
+                    "activity_type": a.activity_type,
+                    "player_name": a.player.name,
+                    "player_id": a.player.pk,
+                })
+
         feed.sort(key=lambda x: x["timestamp"], reverse=True)
-        recent_feed = feed[:7]
+        recent_feed = feed[:12]
 
         now = timezone.now()
         pending_tags_in = Tag.objects.filter(
@@ -342,8 +406,10 @@ def tag_player(request):
         messages.error(request, "Rakip takım bulunamadı.")
         return redirect("dashboard")
 
+    can_tag, no_tag_reason = can_player_challenge(player, season)
+
     now = timezone.now()
-    # Players who have a pending or responded tag created in the last 48h
+    # Opponents who already have a pending tag in the last 48h (can't be targeted again)
     recently_tagged_ids = Tag.objects.filter(
         season=season,
         status__in=["pending", "responded"],
@@ -358,6 +424,11 @@ def tag_player(request):
     not_taggable = opponents.filter(player_id__in=recently_tagged_ids)
 
     if request.method == "POST":
+        # Re-check eligibility server-side
+        if not can_tag:
+            messages.error(request, no_tag_reason)
+            return redirect("tag_player")
+
         tagged_player_id = request.POST.get("tagged_player_id")
         try:
             tagged_player = Player.objects.get(pk=tagged_player_id)
@@ -365,7 +436,6 @@ def tag_player(request):
             messages.error(request, "Oyuncu bulunamadı.")
             return redirect("tag_player")
 
-        # Server-side validation
         if int(tagged_player_id) in list(recently_tagged_ids):
             messages.error(request, "Bu oyuncu zaten meydan okunmuş durumda (48 saat beklenmeli).")
             return redirect("tag_player")
@@ -380,6 +450,8 @@ def tag_player(request):
         return redirect("tag_list")
 
     return render(request, "tracker/tag_player.html", {
+        "can_tag": can_tag,
+        "no_tag_reason": no_tag_reason,
         "taggable": taggable,
         "not_taggable": not_taggable,
         "other_team": other_team,

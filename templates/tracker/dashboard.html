@@ -86,27 +86,38 @@
     </div>
   </div>
 
-  {# --- Recent activities --- #}
+  {# --- Recent feed: own activities/adjustments/tags + opponent activities --- #}
   <div class="col-md-6">
     <div class="card">
-      <div class="card-header fw-bold">⚡ Son Aktiviteler</div>
+      <div class="card-header fw-bold">⚡ Son Hareketler</div>
       <div class="card-body p-0">
         {% if recent_feed %}
         <table class="table table-sm mb-0">
-          <thead><tr><th>Tarih</th><th>Tür</th><th>Puan</th></tr></thead>
+          <thead><tr><th>Tarih</th><th>Hareket</th><th>Puan</th></tr></thead>
           <tbody>
             {% for item in recent_feed %}
             <tr>
-              <td>{{ item.date }}</td>
+              <td class="text-nowrap text-muted small">{{ item.date }}</td>
               <td>
                 {% if item.kind == "activity" %}
                   <span class="badge bg-{{ item.activity_type|activity_color }}">{{ item.label }}</span>
-                {% else %}
+                {% elif item.kind == "adjustment" %}
                   <span class="badge {% if item.points >= 0 %}bg-success{% else %}bg-danger{% endif %}">{{ item.label }}</span>
+                {% elif item.kind == "tag_sent" %}
+                  <span class="badge bg-warning text-dark">🎯 {{ item.label }}</span>
+                  <span class="text-muted small ms-1">{{ item.status_label }}</span>
+                {% elif item.kind == "tag_received" %}
+                  <span class="badge bg-danger">🎯 {{ item.label }}</span>
+                  <span class="text-muted small ms-1">{{ item.status_label }}</span>
+                {% elif item.kind == "opponent_activity" %}
+                  <a href="{% url 'player_profile' item.player_id %}" class="fw-semibold text-decoration-none text-secondary">{{ item.player_name }}</a>
+                  <span class="badge bg-secondary ms-1">{{ item.label }}</span>
                 {% endif %}
               </td>
-              <td>
-                {% if item.points >= 0 %}
+              <td class="text-nowrap">
+                {% if item.kind == "tag_sent" or item.kind == "tag_received" %}
+                  <span class="text-muted">—</span>
+                {% elif item.points >= 0 %}
                   <strong class="text-success">+{{ item.points }}</strong>
                 {% else %}
                   <strong class="text-danger">{{ item.points }}</strong>
@@ -117,12 +128,13 @@
           </tbody>
         </table>
         {% else %}
-          <p class="text-muted p-3 mb-0">Henüz aktivite yok.</p>
+          <p class="text-muted p-3 mb-0">Henüz hareket yok.</p>
         {% endif %}
       </div>
       <div class="card-footer">
         <a href="{% url 'log_activity' %}" class="btn btn-sm btn-primary">+ Aktivite Ekle</a>
         <a href="{% url 'activity_list' %}" class="btn btn-sm btn-outline-secondary ms-1">Tümünü Gör</a>
+        <a href="{% url 'tag_list' %}" class="btn btn-sm btn-outline-secondary ms-1">Meydan Okumalar</a>
       </div>
     </div>
   </div>

@@ -134,6 +134,50 @@ def expire_overdue_tags() -> int:
 
 
 # ---------------------------------------------------------------------------
+# Challenge eligibility
+# ---------------------------------------------------------------------------
+
+def can_player_challenge(player: Player, season: Season) -> tuple:
+    """
+    Returns (can_challenge: bool, reason: str).
+
+    A player may send a challenge only when all three conditions hold:
+    1. They have no pending outgoing tag (one active challenge at a time).
+    2. They have no pending incoming tag (must respond first).
+    3. They have logged an activity more recently than their last sent tag,
+       or – if they have never sent a tag – any activity at all.
+    """
+    if Tag.objects.filter(tagger=player, season=season, status="pending").exists():
+        return False, "Zaten bekleyen bir meydan okuman var, önce o tamamlanmalı."
+
+    if Tag.objects.filter(tagged=player, season=season, status="pending").exists():
+        return False, "Sana gelen meydan okumayı önce yanıtlamalısın."
+
+    last_sent = (
+        Tag.objects.filter(tagger=player, season=season)
+        .order_by("-created_at")
+        .first()
+    )
+
+    if last_sent is None:
+        # Never challenged before – just needs any approved activity.
+        if not Activity.objects.filter(player=player, season=season, is_approved=True).exists():
+            return False, "Meydan okumak için önce bir spor aktivitesi kaydetmelisin."
+        return True, ""
+
+    # Has sent a challenge before – needs a newer activity.
+    has_new = Activity.objects.filter(
+        player=player,
+        season=season,
+        is_approved=True,
+        created_at__gt=last_sent.created_at,
+    ).exists()
+    if not has_new:
+        return False, "Son meydan okumandan bu yana yeni bir aktivite kaydetmelisin."
+    return True, ""
+
+
+# ---------------------------------------------------------------------------
 # Weekly goals
 # ---------------------------------------------------------------------------
 
