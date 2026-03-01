@@ -311,6 +311,10 @@ def log_activity(request):
             week_number = get_current_week_number(season)
             check_weekly_goals(player, season, week_number)
             messages.success(request, f"Aktivite kaydedildi! +{result['total']} puan kazandın.")
+            # Give the player their 30-minute challenge window immediately.
+            can_tag, _ = can_player_challenge(player, season)
+            if can_tag:
+                return redirect("tag_player")
             return redirect("dashboard")
 
     return render(request, "tracker/activity_log.html", {"form": form, "season": season})
@@ -409,6 +413,25 @@ def tag_player(request):
     can_tag, no_tag_reason = can_player_challenge(player, season)
 
     now = timezone.now()
+
+    # Compute when the 30-minute challenge window expires (for the countdown).
+    challenge_expires_at = None
+    if can_tag:
+        window_start = now - timedelta(minutes=30)
+        last_sent = (
+            Tag.objects.filter(tagger=player, season=season)
+            .order_by("-created_at")
+            .first()
+        )
+        qs = Activity.objects.filter(
+            player=player, season=season, is_approved=True, created_at__gte=window_start,
+        )
+        if last_sent:
+            qs = qs.filter(created_at__gt=last_sent.created_at)
+        qualifying = qs.order_by("-created_at").first()
+        if qualifying:
+            challenge_expires_at = qualifying.created_at + timedelta(minutes=30)
+
     # Opponents who already have a pending tag in the last 48h (can't be targeted again)
     recently_tagged_ids = Tag.objects.filter(
         season=season,
@@ -452,6 +475,7 @@ def tag_player(request):
     return render(request, "tracker/tag_player.html", {
         "can_tag": can_tag,
         "no_tag_reason": no_tag_reason,
+        "challenge_expires_at": challenge_expires_at,
         "taggable": taggable,
         "not_taggable": not_taggable,
         "other_team": other_team,

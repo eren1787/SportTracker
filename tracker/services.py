@@ -141,39 +141,44 @@ def can_player_challenge(player: Player, season: Season) -> tuple:
     """
     Returns (can_challenge: bool, reason: str).
 
-    A player may send a challenge only when all three conditions hold:
-    1. They have no pending outgoing tag (one active challenge at a time).
-    2. They have no pending incoming tag (must respond first).
-    3. They have logged an activity more recently than their last sent tag,
-       or – if they have never sent a tag – any activity at all.
+    A player earns a 30-minute challenge window the moment they log an
+    approved activity (or respond to an incoming challenge, which also
+    requires logging an activity).  The window is consumed as soon as they
+    send a challenge, so the same activity cannot be used twice.
+
+    Conditions:
+    1. No pending outgoing tag.
+    2. No pending incoming tag (must respond first).
+    3. An approved activity exists within the last 30 minutes, and no
+       challenge has been sent after that activity.
     """
     if Tag.objects.filter(tagger=player, season=season, status="pending").exists():
-        return False, "Zaten bekleyen bir meydan okuman var, önce o tamamlanmalı."
+        return False, "Bekleyen bir meydan okuman var."
 
     if Tag.objects.filter(tagged=player, season=season, status="pending").exists():
-        return False, "Sana gelen meydan okumayı önce yanıtlamalısın."
+        return False, "Önce gelen meydan okumayı yanıtlamalısın."
 
-    last_sent = (
-        Tag.objects.filter(tagger=player, season=season)
+    window_start = timezone.now() - timedelta(minutes=30)
+    recent_activity = (
+        Activity.objects.filter(
+            player=player, season=season, is_approved=True,
+            created_at__gte=window_start,
+        )
         .order_by("-created_at")
         .first()
     )
 
-    if last_sent is None:
-        # Never challenged before – just needs any approved activity.
-        if not Activity.objects.filter(player=player, season=season, is_approved=True).exists():
-            return False, "Meydan okumak için önce bir spor aktivitesi kaydetmelisin."
-        return True, ""
+    if not recent_activity:
+        return False, "Meydan okuma hakkın yok – aktivite kaydettikten sonra 30 dakikan olur."
 
-    # Has sent a challenge before – needs a newer activity.
-    has_new = Activity.objects.filter(
-        player=player,
-        season=season,
-        is_approved=True,
-        created_at__gt=last_sent.created_at,
+    # Right is consumed the moment a challenge is sent after this activity.
+    already_used = Tag.objects.filter(
+        tagger=player, season=season,
+        created_at__gt=recent_activity.created_at,
     ).exists()
-    if not has_new:
-        return False, "Son meydan okumandan bu yana yeni bir aktivite kaydetmelisin."
+    if already_used:
+        return False, "Bu aktivite için meydan okuma hakkını zaten kullandın."
+
     return True, ""
 
 

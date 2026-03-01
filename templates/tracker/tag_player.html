@@ -5,49 +5,26 @@
 <h2 class="mb-3">🎯 Rakibe Meydan Oku</h2>
 
 {% if not can_tag %}
-  <div class="alert alert-warning d-flex align-items-center gap-2">
-    <span style="font-size:1.4rem;">🚫</span>
+  {# No challenge right — show reason and bail #}
+  <div class="alert alert-secondary d-flex align-items-center gap-3">
+    <span style="font-size:1.6rem;">⏳</span>
     <div>
-      <strong>Şu an meydan okuyamazsın.</strong><br>
-      {{ no_tag_reason }}
-      {% if "aktivite" in no_tag_reason %}
-        <a href="{% url 'log_activity' %}" class="btn btn-sm btn-primary ms-2">Aktivite Kaydet</a>
-      {% endif %}
+      <strong>Şu an meydan okuma hakkın yok.</strong><br>
+      <span class="text-muted">{{ no_tag_reason }}</span>
     </div>
   </div>
-
-  {# Still show the opponent roster, but all cards disabled #}
-  {% if other_team %}
-  <h5 class="text-muted mt-4">{{ other_team.name }} oyuncuları</h5>
-  {% endif %}
-  <div class="row g-3">
-    {% for m in taggable %}
-    <div class="col-md-3">
-      <div class="card text-center h-100 opacity-50">
-        <div class="card-body">
-          <div class="display-4 mb-2 text-muted">{{ m.player.name|slice:":1"|upper }}</div>
-          <h6 class="card-title">{{ m.player.name }}</h6>
-          <small class="text-muted d-block mb-3">{{ m.season_points }} puan</small>
-          <button class="btn btn-sm btn-secondary" disabled>Meydan Oku</button>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
-    {% for m in not_taggable %}
-    <div class="col-md-3">
-      <div class="card text-center h-100 opacity-25">
-        <div class="card-body">
-          <div class="display-4 mb-2 text-muted">{{ m.player.name|slice:":1"|upper }}</div>
-          <h6 class="card-title">{{ m.player.name }}</h6>
-          <small class="text-muted d-block mb-3">{{ m.season_points }} puan</small>
-          <button class="btn btn-sm btn-secondary" disabled>Meydan Okunmuş</button>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
+  <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm">Ana Sayfa</a>
 
 {% else %}
+  {# Has challenge right — show countdown + opponent cards #}
+  <div class="alert alert-success d-flex align-items-center gap-3 mb-4">
+    <span style="font-size:1.6rem;">⚡</span>
+    <div>
+      <strong>Meydan okuma hakkın var!</strong>
+      Kalan süre: <strong id="challenge-countdown" data-expires="{{ challenge_expires_at.isoformat }}">hesaplanıyor…</strong>
+    </div>
+  </div>
+
   <p class="text-muted">Rakip takımdan bir oyuncuyu seç. Meydan okunan oyuncunun 48 saat içinde ≥2 puan değerinde bir aktivite kaydetmesi gerekir.</p>
 
   {% if other_team %}
@@ -95,15 +72,15 @@
       </div>
     </div>
     {% empty %}
-    <div class="col">
-      <p class="text-muted">Şu an meydan okuyabileceğin oyuncu yok (hepsi meydan okunmuş durumda).</p>
+    <div class="col-12">
+      <p class="text-muted">Şu an meydan okuyabileceğin oyuncu yok (hepsi zaten meydan okunmuş durumda).</p>
     </div>
     {% endfor %}
 
-    {# Already challenged (48h cooldown) #}
+    {# Already challenged — greyed out #}
     {% for m in not_taggable %}
     <div class="col-md-3">
-      <div class="card text-center h-100 opacity-50" title="Bu oyuncu zaten meydan okunmuş (48 saat beklenmeli)">
+      <div class="card text-center h-100 opacity-50" title="48 saat beklenmeli">
         <div class="card-body">
           <div class="display-4 mb-2 text-muted">{{ m.player.name|slice:":1"|upper }}</div>
           <h6 class="card-title">{{ m.player.name }}</h6>
@@ -114,11 +91,11 @@
     </div>
     {% endfor %}
   </div>
-{% endif %}
 
-<div class="mt-3">
-  <a href="{% url 'tag_list' %}" class="btn btn-outline-secondary btn-sm">Meydan Okumalar Listesi</a>
-</div>
+  <div class="mt-3">
+    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm">Geç, Ana Sayfaya Dön</a>
+  </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -126,6 +103,32 @@
 function openConfirm(id, name) {
   document.getElementById('modal-player-id').value = id;
   document.getElementById('modal-player-name').textContent = name;
+}
+
+// Live countdown for the 30-minute challenge window
+const countdownEl = document.getElementById('challenge-countdown');
+if (countdownEl) {
+  function updateCountdown() {
+    const expires = new Date(countdownEl.dataset.expires);
+    const diff = expires - new Date();
+    if (diff <= 0) {
+      countdownEl.textContent = 'Süre doldu!';
+      countdownEl.className = 'text-danger fw-bold';
+      // Disable all challenge buttons
+      document.querySelectorAll('.btn-danger[data-bs-target="#confirmModal"]').forEach(b => {
+        b.disabled = true;
+        b.textContent = 'Süre Doldu';
+        b.classList.replace('btn-danger', 'btn-secondary');
+      });
+      return;
+    }
+    const m = Math.floor(diff / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    countdownEl.textContent = m + ' dk ' + s + ' sn';
+    if (diff < 60000) countdownEl.className = 'text-danger fw-bold';
+    setTimeout(updateCountdown, 1000);
+  }
+  updateCountdown();
 }
 </script>
 {% endblock %}
