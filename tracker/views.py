@@ -101,6 +101,8 @@ def dashboard(request):
     goals_status = {}
     team_standings = []
     current_week = 1
+    can_tag = False
+    challenge_expires_at = None
 
     if season:
         expire_overdue_tags()  # auto-expire on every dashboard load
@@ -351,7 +353,38 @@ def activity_list(request):
         return redir
 
     player = _get_player(request)
-    qs = Activity.objects.filter(player=player).select_related("season").order_by("-date", "-created_at")
+    season = _get_active_season()
+
+    # Determine which players to show: mine + opponents in active season, or just mine
+    scope_filter = request.GET.get("scope", "all")
+    if scope_filter == "mine":
+        qs = Activity.objects.filter(player=player)
+    elif scope_filter == "opponent" and season:
+        membership = TeamMembership.objects.filter(player=player, season=season).first()
+        if membership:
+            opp_ids = TeamMembership.objects.filter(
+                season=season
+            ).exclude(team=membership.team).values_list("player_id", flat=True)
+            qs = Activity.objects.filter(player_id__in=opp_ids, season=season)
+        else:
+            qs = Activity.objects.none()
+    else:
+        # Default "all": own activities across all seasons + active-season opponent activities
+        own_qs = Activity.objects.filter(player=player)
+        if season:
+            membership = TeamMembership.objects.filter(player=player, season=season).first()
+            if membership:
+                opp_ids = TeamMembership.objects.filter(
+                    season=season
+                ).exclude(team=membership.team).values_list("player_id", flat=True)
+                opp_qs = Activity.objects.filter(player_id__in=opp_ids, season=season)
+                qs = (own_qs | opp_qs).distinct()
+            else:
+                qs = own_qs
+        else:
+            qs = own_qs
+
+    qs = qs.select_related("season", "player").order_by("-date", "-created_at")
 
     # Optional filters
     season_filter = request.GET.get("season")
@@ -371,6 +404,8 @@ def activity_list(request):
         "activity_choices": ACTIVITY_CHOICES,
         "season_filter": season_filter,
         "type_filter": type_filter,
+        "scope_filter": scope_filter,
+        "current_player": player,
     })
 
 
@@ -475,12 +510,12 @@ def tag_player(request):
 
         tagged_player_id = request.POST.get("tagged_player_id")
         try:
-            tagged_player = Player.objects.get(pk=tagged_player_id)
-        except Player.DoesNotExist:
+            tagged_player = Player.objects.get(pk=int(tagged_player_id))
+        except (Player.DoesNotExist, TypeError, ValueError):
             messages.error(request, "Oyuncu bulunamadı.")
             return redirect("tag_player")
 
-        if int(tagged_player_id) in list(recently_tagged_ids):
+        if tagged_player.pk in recently_tagged_ids:
             messages.error(request, "Bu oyuncu zaten meydan okunmuş durumda (48 saat beklenmeli).")
             return redirect("tag_player")
 

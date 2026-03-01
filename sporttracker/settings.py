@@ -41,7 +41,7 @@ SECRET_KEY = os.getenv(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = _env_bool("DEBUG", True)
+DEBUG = _env_bool("DEBUG", False)
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "0.0.0.0", ".vercel.app"]
 ALLOWED_HOSTS += _env_csv("ALLOWED_HOSTS")
