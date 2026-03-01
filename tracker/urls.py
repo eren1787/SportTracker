@@ -14,4 +14,5 @@ urlpatterns = [
     path("hedefler/", views.weekly_goals, name="weekly_goals"),
     path("sezon/<int:pk>/", views.season_detail, name="season_detail"),
     path("profil/<int:pk>/", views.player_profile, name="player_profile"),
+    path("hareketler/", views.feed, name="feed"),
 ]

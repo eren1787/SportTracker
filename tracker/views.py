@@ -217,7 +217,7 @@ def dashboard(request):
                 })
 
         feed.sort(key=lambda x: x["timestamp"], reverse=True)
-        recent_feed = feed[:12]
+        recent_feed = feed[:20]
 
         now = timezone.now()
         pending_tags_in = Tag.objects.filter(
@@ -673,4 +673,108 @@ def player_profile(request, pk):
         "recent_activities": recent_activities,
         "tags_sent": tags_sent,
         "tags_received": tags_received,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Full Feed
+# ---------------------------------------------------------------------------
+
+def feed(request):
+    redir = _require_login(request)
+    if redir:
+        return redir
+
+    player = _get_player(request)
+    season = _get_active_season()
+
+    all_items = []
+    _STATUS_TR = {"pending": "Bekliyor", "responded": "Yanıtlandı", "expired": "Süresi Doldu"}
+
+    if season:
+        expire_overdue_tags()
+        membership = TeamMembership.objects.filter(player=player, season=season).first()
+
+        for a in Activity.objects.filter(player=player, season=season).order_by("-created_at"):
+            all_items.append({
+                "kind": "activity",
+                "timestamp": a.created_at,
+                "date": a.date,
+                "label": a.get_activity_type_display(),
+                "points": a.total_points,
+                "activity_type": a.activity_type,
+                "player_name": None,
+                "player_id": None,
+                "status_label": None,
+            })
+
+        for adj in PointAdjustment.objects.filter(player=player, season=season).order_by("-created_at"):
+            all_items.append({
+                "kind": "adjustment",
+                "timestamp": adj.created_at,
+                "date": adj.created_at.date(),
+                "label": adj.get_reason_display(),
+                "points": adj.points,
+                "activity_type": None,
+                "player_name": None,
+                "player_id": None,
+                "status_label": None,
+            })
+
+        for tag in Tag.objects.filter(tagger=player, season=season).select_related("tagged").order_by("-created_at"):
+            all_items.append({
+                "kind": "tag_sent",
+                "timestamp": tag.created_at,
+                "date": tag.created_at.date(),
+                "label": f"{tag.tagged.name}'e meydan okudun",
+                "points": None,
+                "activity_type": None,
+                "player_name": tag.tagged.name,
+                "player_id": tag.tagged.pk,
+                "status_label": _STATUS_TR.get(tag.status, tag.status),
+            })
+
+        for tag in Tag.objects.filter(tagged=player, season=season).select_related("tagger").order_by("-created_at"):
+            all_items.append({
+                "kind": "tag_received",
+                "timestamp": tag.created_at,
+                "date": tag.created_at.date(),
+                "label": f"{tag.tagger.name} sana meydan okudu",
+                "points": None,
+                "activity_type": None,
+                "player_name": tag.tagger.name,
+                "player_id": tag.tagger.pk,
+                "status_label": _STATUS_TR.get(tag.status, tag.status),
+            })
+
+        if membership:
+            opp_ids = (
+                TeamMembership.objects.filter(season=season)
+                .exclude(team=membership.team)
+                .values_list("player_id", flat=True)
+            )
+            for a in Activity.objects.filter(
+                player_id__in=opp_ids, season=season, is_approved=True
+            ).select_related("player").order_by("-created_at"):
+                all_items.append({
+                    "kind": "opponent_activity",
+                    "timestamp": a.created_at,
+                    "date": a.date,
+                    "label": a.get_activity_type_display(),
+                    "points": a.total_points,
+                    "activity_type": a.activity_type,
+                    "player_name": a.player.name,
+                    "player_id": a.player.pk,
+                    "status_label": None,
+                })
+
+        all_items.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    paginator = Paginator(all_items, 30)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "tracker/feed.html", {
+        "player": player,
+        "season": season,
+        "page_obj": page_obj,
     })
