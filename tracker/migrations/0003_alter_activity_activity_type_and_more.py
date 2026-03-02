@@ -17,6 +17,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("training", "Antrenmana Katılım"),
                     ("analysis", "Analize Katılım"),
+                    ("tournament", "Turnuva Katılımı"),
                     ("match_watching", "Maç İzleme"),
                     ("other_team_frisbee", "Farklı Takım Frizbi Antrenmanı"),
                     ("upper_body", "Üst Vücut Antrenmanı"),
@@ -25,7 +26,6 @@ class Migration(migrations.Migration):
                     ("other_sport", "Farklı Spor"),
                     ("flexibility", "Yoga / Pilates / Mobilite"),
                     ("hf_disk", "HF Disk"),
-                    ("tournament", "Turnuva Katılımı"),
                 ],
                 max_length=50,
             ),
