@@ -130,26 +130,26 @@ def dashboard(request):
 
         raw_activities = list(
             Activity.objects.filter(player=player, season=season)
-            .order_by("-created_at")[:12]
+            .order_by("-created_at")[:10]
         )
         raw_adjustments = list(
             PointAdjustment.objects.filter(player=player, season=season)
-            .order_by("-created_at")[:10]
+            .order_by("-created_at")[:6]
         )
         raw_tags_sent = list(
             Tag.objects.filter(tagger=player, season=season)
             .select_related("tagged")
-            .order_by("-created_at")[:8]
+            .order_by("-created_at")[:5]
         )
         raw_tags_received = list(
             Tag.objects.filter(tagged=player, season=season)
             .select_related("tagger")
-            .order_by("-created_at")[:8]
+            .order_by("-created_at")[:5]
         )
 
-        feed = []
+        own_feed = []
         for a in raw_activities:
-            feed.append({
+            own_feed.append({
                 "kind": "activity",
                 "timestamp": a.created_at,
                 "date": a.date,
@@ -160,7 +160,7 @@ def dashboard(request):
                 "player_id": None,
             })
         for adj in raw_adjustments:
-            feed.append({
+            own_feed.append({
                 "kind": "adjustment",
                 "timestamp": adj.created_at,
                 "date": adj.created_at.date(),
@@ -171,7 +171,7 @@ def dashboard(request):
                 "player_id": None,
             })
         for tag in raw_tags_sent:
-            feed.append({
+            own_feed.append({
                 "kind": "tag_sent",
                 "timestamp": tag.created_at,
                 "date": tag.created_at.date(),
@@ -183,7 +183,7 @@ def dashboard(request):
                 "player_id": tag.tagged.pk,
             })
         for tag in raw_tags_received:
-            feed.append({
+            own_feed.append({
                 "kind": "tag_received",
                 "timestamp": tag.created_at,
                 "date": tag.created_at.date(),
@@ -195,7 +195,10 @@ def dashboard(request):
                 "player_id": tag.tagger.pk,
             })
 
-        # Opponent activities
+        own_feed.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        # Opponent activities — build separately so they always get slots
+        opp_feed = []
         if membership:
             opp_player_ids = list(
                 TeamMembership.objects.filter(season=season)
@@ -204,8 +207,8 @@ def dashboard(request):
             )
             for a in Activity.objects.filter(
                 player_id__in=opp_player_ids, season=season, is_approved=True
-            ).select_related("player").order_by("-created_at")[:12]:
-                feed.append({
+            ).select_related("player").order_by("-created_at")[:10]:
+                opp_feed.append({
                     "kind": "opponent_activity",
                     "timestamp": a.created_at,
                     "date": a.date,
@@ -216,6 +219,8 @@ def dashboard(request):
                     "player_id": a.player.pk,
                 })
 
+        # Merge top 12 own + top 8 opp so opponents always appear
+        feed = own_feed[:12] + opp_feed[:8]
         feed.sort(key=lambda x: x["timestamp"], reverse=True)
         recent_feed = feed[:20]
 
