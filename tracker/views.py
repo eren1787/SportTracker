@@ -197,23 +197,11 @@ def dashboard(request):
 
         own_feed.sort(key=lambda x: x["timestamp"], reverse=True)
 
-        # Opponent activities — build separately so they always get slots
+        # Other players' activities
         opp_feed = []
-        if membership:
-            opp_player_ids = list(
-                TeamMembership.objects.filter(season=season)
-                .exclude(team=membership.team)
-                .values_list("player_id", flat=True)
-            )
-        else:
-            opp_player_ids = list(
-                Player.objects.exclude(pk=player.pk)
-                .filter(is_active=True)
-                .values_list("pk", flat=True)
-            )
         for a in Activity.objects.filter(
-            player_id__in=opp_player_ids, season=season, is_approved=True
-        ).select_related("player").order_by("-created_at")[:10]:
+            season=season, is_approved=True
+        ).exclude(player=player).select_related("player").order_by("-created_at")[:10]:
             opp_feed.append({
                 "kind": "opponent_activity",
                 "timestamp": a.created_at,
@@ -758,21 +746,9 @@ def feed(request):
                 "status_label": _STATUS_TR.get(tag.status, tag.status),
             })
 
-        if membership:
-            opp_ids = (
-                TeamMembership.objects.filter(season=season)
-                .exclude(team=membership.team)
-                .values_list("player_id", flat=True)
-            )
-        else:
-            opp_ids = (
-                Player.objects.exclude(pk=player.pk)
-                .filter(is_active=True)
-                .values_list("pk", flat=True)
-            )
         for a in Activity.objects.filter(
-            player_id__in=opp_ids, season=season, is_approved=True
-        ).select_related("player").order_by("-created_at"):
+            season=season, is_approved=True
+        ).exclude(player=player).select_related("player").order_by("-created_at"):
             all_items.append({
                 "kind": "opponent_activity",
                 "timestamp": a.created_at,
