@@ -30,10 +30,10 @@
           <td class="align-middle">
             {% if item.kind == "opponent_activity" %}
               <a href="{% url 'player_profile' item.player_id %}" class="fw-semibold text-decoration-none">{{ item.player_name }}</a>
-            {% elif item.kind == "tag_sent" %}
-              <a href="{% url 'player_profile' item.player_id %}" class="text-decoration-none text-muted">→ {{ item.player_name }}</a>
-            {% elif item.kind == "tag_received" %}
-              <a href="{% url 'player_profile' item.player_id %}" class="text-decoration-none text-muted">← {{ item.player_name }}</a>
+            {% elif item.kind == "tag_event" %}
+              <a href="{% url 'player_profile' item.tagger_id %}" class="fw-semibold text-decoration-none">{{ item.tagger_name }}</a>
+              <span class="text-muted mx-1">→</span>
+              <a href="{% url 'player_profile' item.tagged_id %}" class="text-decoration-none">{{ item.tagged_name }}</a>
             {% else %}
               <span class="fw-semibold">{{ player.name }}</span>
             {% endif %}
@@ -43,18 +43,15 @@
               <span class="badge bg-{{ item.activity_type|activity_color }}">{{ item.label }}</span>
             {% elif item.kind == "adjustment" %}
               <span class="badge {% if item.points >= 0 %}bg-success{% else %}bg-danger{% endif %}">{{ item.label }}</span>
-            {% elif item.kind == "tag_sent" %}
-              <span class="badge bg-warning text-dark">🎯 Meydan Okudun</span>
-              <span class="text-muted small ms-1">{{ item.status_label }}</span>
-            {% elif item.kind == "tag_received" %}
-              <span class="badge bg-danger">🎯 Meydan Okundu</span>
+            {% elif item.kind == "tag_event" %}
+              <span class="badge bg-warning text-dark">🎯 Meydan Okuma</span>
               <span class="text-muted small ms-1">{{ item.status_label }}</span>
             {% elif item.kind == "opponent_activity" %}
               <span class="badge bg-secondary">{{ item.label }}</span>
             {% endif %}
           </td>
           <td class="text-nowrap align-middle">
-            {% if item.kind == "tag_sent" or item.kind == "tag_received" %}
+            {% if item.kind == "tag_event" %}
               <span class="text-muted">—</span>
             {% elif item.points >= 0 %}
               <strong class="text-success">+{{ item.points }}</strong>

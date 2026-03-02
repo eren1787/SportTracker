@@ -136,15 +136,10 @@ def dashboard(request):
             PointAdjustment.objects.filter(player=player, season=season)
             .order_by("-created_at")[:6]
         )
-        raw_tags_sent = list(
-            Tag.objects.filter(tagger=player, season=season)
-            .select_related("tagged")
-            .order_by("-created_at")[:5]
-        )
-        raw_tags_received = list(
-            Tag.objects.filter(tagged=player, season=season)
-            .select_related("tagger")
-            .order_by("-created_at")[:5]
+        raw_tags = list(
+            Tag.objects.filter(season=season)
+            .select_related("tagger", "tagged")
+            .order_by("-created_at")[:10]
         )
 
         own_feed = []
@@ -170,29 +165,21 @@ def dashboard(request):
                 "player_name": None,
                 "player_id": None,
             })
-        for tag in raw_tags_sent:
+        for tag in raw_tags:
             own_feed.append({
-                "kind": "tag_sent",
+                "kind": "tag_event",
                 "timestamp": tag.created_at,
                 "date": tag.created_at.date(),
-                "label": f"{tag.tagged.name}'e meydan okudun",
+                "label": f"{tag.tagger.name} → {tag.tagged.name}",
                 "status_label": _STATUS_TR.get(tag.status, tag.status),
                 "points": None,
                 "activity_type": None,
-                "player_name": tag.tagged.name,
-                "player_id": tag.tagged.pk,
-            })
-        for tag in raw_tags_received:
-            own_feed.append({
-                "kind": "tag_received",
-                "timestamp": tag.created_at,
-                "date": tag.created_at.date(),
-                "label": f"{tag.tagger.name} sana meydan okudu",
-                "status_label": _STATUS_TR.get(tag.status, tag.status),
-                "points": None,
-                "activity_type": None,
-                "player_name": tag.tagger.name,
-                "player_id": tag.tagger.pk,
+                "tagger_name": tag.tagger.name,
+                "tagger_id": tag.tagger.pk,
+                "tagged_name": tag.tagged.name,
+                "tagged_id": tag.tagged.pk,
+                "player_name": None,
+                "player_id": None,
             })
 
         own_feed.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -720,29 +707,20 @@ def feed(request):
                 "status_label": None,
             })
 
-        for tag in Tag.objects.filter(tagger=player, season=season).select_related("tagged").order_by("-created_at"):
+        for tag in Tag.objects.filter(season=season).select_related("tagger", "tagged").order_by("-created_at"):
             all_items.append({
-                "kind": "tag_sent",
+                "kind": "tag_event",
                 "timestamp": tag.created_at,
                 "date": tag.created_at.date(),
-                "label": f"{tag.tagged.name}'e meydan okudun",
+                "label": f"{tag.tagger.name} → {tag.tagged.name}",
                 "points": None,
                 "activity_type": None,
-                "player_name": tag.tagged.name,
-                "player_id": tag.tagged.pk,
-                "status_label": _STATUS_TR.get(tag.status, tag.status),
-            })
-
-        for tag in Tag.objects.filter(tagged=player, season=season).select_related("tagger").order_by("-created_at"):
-            all_items.append({
-                "kind": "tag_received",
-                "timestamp": tag.created_at,
-                "date": tag.created_at.date(),
-                "label": f"{tag.tagger.name} sana meydan okudu",
-                "points": None,
-                "activity_type": None,
-                "player_name": tag.tagger.name,
-                "player_id": tag.tagger.pk,
+                "tagger_name": tag.tagger.name,
+                "tagger_id": tag.tagger.pk,
+                "tagged_name": tag.tagged.name,
+                "tagged_id": tag.tagged.pk,
+                "player_name": None,
+                "player_id": None,
                 "status_label": _STATUS_TR.get(tag.status, tag.status),
             })
 
