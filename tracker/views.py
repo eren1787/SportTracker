@@ -205,19 +205,25 @@ def dashboard(request):
                 .exclude(team=membership.team)
                 .values_list("player_id", flat=True)
             )
-            for a in Activity.objects.filter(
-                player_id__in=opp_player_ids, season=season, is_approved=True
-            ).select_related("player").order_by("-created_at")[:10]:
-                opp_feed.append({
-                    "kind": "opponent_activity",
-                    "timestamp": a.created_at,
-                    "date": a.date,
-                    "label": a.get_activity_type_display(),
-                    "points": a.total_points,
-                    "activity_type": a.activity_type,
-                    "player_name": a.player.name,
-                    "player_id": a.player.pk,
-                })
+        else:
+            opp_player_ids = list(
+                Player.objects.exclude(pk=player.pk)
+                .filter(is_active=True)
+                .values_list("pk", flat=True)
+            )
+        for a in Activity.objects.filter(
+            player_id__in=opp_player_ids, season=season, is_approved=True
+        ).select_related("player").order_by("-created_at")[:10]:
+            opp_feed.append({
+                "kind": "opponent_activity",
+                "timestamp": a.created_at,
+                "date": a.date,
+                "label": a.get_activity_type_display(),
+                "points": a.total_points,
+                "activity_type": a.activity_type,
+                "player_name": a.player.name,
+                "player_id": a.player.pk,
+            })
 
         # Merge top 12 own + top 8 opp so opponents always appear
         feed = own_feed[:12] + opp_feed[:8]
@@ -758,20 +764,26 @@ def feed(request):
                 .exclude(team=membership.team)
                 .values_list("player_id", flat=True)
             )
-            for a in Activity.objects.filter(
-                player_id__in=opp_ids, season=season, is_approved=True
-            ).select_related("player").order_by("-created_at"):
-                all_items.append({
-                    "kind": "opponent_activity",
-                    "timestamp": a.created_at,
-                    "date": a.date,
-                    "label": a.get_activity_type_display(),
-                    "points": a.total_points,
-                    "activity_type": a.activity_type,
-                    "player_name": a.player.name,
-                    "player_id": a.player.pk,
-                    "status_label": None,
-                })
+        else:
+            opp_ids = (
+                Player.objects.exclude(pk=player.pk)
+                .filter(is_active=True)
+                .values_list("pk", flat=True)
+            )
+        for a in Activity.objects.filter(
+            player_id__in=opp_ids, season=season, is_approved=True
+        ).select_related("player").order_by("-created_at"):
+            all_items.append({
+                "kind": "opponent_activity",
+                "timestamp": a.created_at,
+                "date": a.date,
+                "label": a.get_activity_type_display(),
+                "points": a.total_points,
+                "activity_type": a.activity_type,
+                "player_name": a.player.name,
+                "player_id": a.player.pk,
+                "status_label": None,
+            })
 
         all_items.sort(key=lambda x: x["timestamp"], reverse=True)
 
