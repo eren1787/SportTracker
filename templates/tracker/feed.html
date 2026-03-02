@@ -45,7 +45,10 @@
               <span class="badge {% if item.points >= 0 %}bg-success{% else %}bg-danger{% endif %}">{{ item.label }}</span>
             {% elif item.kind == "tag_event" %}
               <span class="badge bg-warning text-dark">🎯 Meydan Okuma</span>
-              <span class="text-muted small ms-1">{{ item.status_label }}</span>
+              {% if item.status_label == "Bekliyor" %}<span class="badge bg-warning text-dark ms-1">{{ item.status_label }}</span>
+              {% elif item.status_label == "Yanıtlandı" %}<span class="badge bg-success ms-1">{{ item.status_label }}</span>
+              {% elif item.status_label == "Süresi Doldu" %}<span class="badge bg-danger ms-1">{{ item.status_label }}</span>
+              {% endif %}
             {% elif item.kind == "opponent_activity" %}
               <span class="badge bg-secondary">{{ item.label }}</span>
             {% endif %}

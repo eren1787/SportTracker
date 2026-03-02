@@ -49,7 +49,10 @@
                   <a href="{% url 'player_profile' item.tagger_id %}" class="fw-semibold text-decoration-none small">{{ item.tagger_name }}</a>
                   <span class="text-muted small mx-1">→</span>
                   <a href="{% url 'player_profile' item.tagged_id %}" class="text-decoration-none small">{{ item.tagged_name }}</a>
-                  <span class="text-muted small ms-1">{{ item.status_label }}</span>
+                  {% if item.status_label == "Bekliyor" %}<span class="badge bg-warning text-dark ms-1">{{ item.status_label }}</span>
+                  {% elif item.status_label == "Yanıtlandı" %}<span class="badge bg-success ms-1">{{ item.status_label }}</span>
+                  {% elif item.status_label == "Süresi Doldu" %}<span class="badge bg-danger ms-1">{{ item.status_label }}</span>
+                  {% endif %}
                 {% elif item.kind == "opponent_activity" %}
                   <a href="{% url 'player_profile' item.player_id %}" class="fw-semibold text-decoration-none text-secondary">{{ item.player_name }}</a>
                   <span class="badge bg-secondary ms-1">{{ item.label }}</span>
