@@ -49,5 +49,6 @@ def activity_color(activity_type):
         "lower_body_core_hiit": "dark",
         "other_team_frisbee": "primary",
         "hf_disk": "success",
+        "tournament": "warning",
     }
     return colors.get(activity_type, "secondary")

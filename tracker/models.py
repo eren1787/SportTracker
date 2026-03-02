@@ -11,6 +11,7 @@ ACTIVITY_CHOICES = [
     ("other_sport", "Farklı Spor"),
     ("flexibility", "Yoga / Pilates / Mobilite"),
     ("hf_disk", "HF Disk"),
+    ("tournament", "Turnuva Katılımı"),
 ]
 
 BASE_POINTS = {
@@ -23,6 +24,7 @@ BASE_POINTS = {
     "endurance": 3,
     "other_sport": 1,
     "flexibility": 1,
+    "tournament": 3,
     # hf_disk: duration-based (1 pt per 20 min), not in BASE_POINTS
 }
 
