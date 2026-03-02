@@ -3,6 +3,7 @@ from django.db import models
 ACTIVITY_CHOICES = [
     ("training", "Antrenmana Katılım"),
     ("analysis", "Analize Katılım"),
+    ("tournament", "Turnuva Katılımı"),
     ("match_watching", "Maç İzleme"),
     ("other_team_frisbee", "Farklı Takım Frizbi Antrenmanı"),
     ("upper_body", "Üst Vücut Antrenmanı"),
@@ -11,12 +12,12 @@ ACTIVITY_CHOICES = [
     ("other_sport", "Farklı Spor"),
     ("flexibility", "Yoga / Pilates / Mobilite"),
     ("hf_disk", "HF Disk"),
-    ("tournament", "Turnuva Katılımı"),
 ]
 
 BASE_POINTS = {
     "training": 4,
     "analysis": 4,
+    "tournament": 3,
     "match_watching": 3,
     "other_team_frisbee": 2,
     "upper_body": 2,
@@ -24,7 +25,6 @@ BASE_POINTS = {
     "endurance": 3,
     "other_sport": 1,
     "flexibility": 1,
-    "tournament": 3,
     # hf_disk: duration-based (1 pt per 20 min), not in BASE_POINTS
 }
 
