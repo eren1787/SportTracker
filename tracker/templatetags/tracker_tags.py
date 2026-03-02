@@ -24,6 +24,18 @@ def get_item(dictionary, key):
 
 
 @register.filter
+def text_color(color_code):
+    """Return '#fff' or '#111' based on the luminance of the given hex color."""
+    try:
+        c = color_code.lstrip("#")
+        r, g, b = int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return "#111" if luminance > 0.55 else "#fff"
+    except Exception:
+        return "#fff"
+
+
+@register.filter
 def activity_color(activity_type):
     """Returns a Bootstrap badge color class for the given activity type."""
     colors = {

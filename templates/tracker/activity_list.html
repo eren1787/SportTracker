@@ -1,12 +1,35 @@
 {% extends "base.html" %}
 {% load tracker_tags %}
-{% block title %}Aktivitelerim – SportTracker{% endblock %}
+{% block title %}Aktiviteler – SportTracker{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">Aktivitelerim</h2>
+<h2 class="mb-3">Aktiviteler</h2>
+
+{# Scope tabs #}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if scope_filter == 'all' %}active{% endif %}"
+       href="?scope=all{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      Tümü
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if scope_filter == 'mine' %}active{% endif %}"
+       href="?scope=mine{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      Benim
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if scope_filter == 'opponent' %}active{% endif %}"
+       href="?scope=opponent{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      Rakip Takım
+    </a>
+  </li>
+</ul>
 
 {# Filters #}
 <form method="get" class="row g-2 mb-4">
+  <input type="hidden" name="scope" value="{{ scope_filter }}">
   <div class="col-auto">
     <select name="season" class="form-select form-select-sm">
       <option value="">Tüm sezonlar</option>
@@ -27,7 +50,7 @@
   </div>
   <div class="col-auto">
     <button type="submit" class="btn btn-sm btn-outline-primary">Filtrele</button>
-    <a href="{% url 'activity_list' %}" class="btn btn-sm btn-outline-secondary">Temizle</a>
+    <a href="{% url 'activity_list' %}?scope={{ scope_filter }}" class="btn btn-sm btn-outline-secondary">Temizle</a>
   </div>
 </form>
 
@@ -37,6 +60,7 @@
       <thead class="table-light">
         <tr>
           <th>Tarih</th>
+          <th>Oyuncu</th>
           <th>Tür</th>
           <th>Puan</th>
           <th>Notlar</th>
@@ -46,8 +70,11 @@
       </thead>
       <tbody>
         {% for a in page_obj %}
-        <tr>
+        <tr {% if a.player == current_player %}class="table-primary"{% endif %}>
           <td>{{ a.date }}</td>
+          <td>
+            <a href="{% url 'player_profile' a.player.pk %}">{{ a.player.name }}</a>
+          </td>
           <td>
             <span class="badge bg-{{ a.activity_type|activity_color }}">
               {{ a.get_activity_type_display }}
@@ -65,7 +92,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -78,17 +105,17 @@
   <ul class="pagination pagination-sm">
     {% if page_obj.has_previous %}
     <li class="page-item">
-      <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">«</a>
+      <a class="page-link" href="?scope={{ scope_filter }}&page={{ page_obj.previous_page_number }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">«</a>
     </li>
     {% endif %}
     {% for num in page_obj.paginator.page_range %}
     <li class="page-item {% if num == page_obj.number %}active{% endif %}">
-      <a class="page-link" href="?page={{ num }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">{{ num }}</a>
+      <a class="page-link" href="?scope={{ scope_filter }}&page={{ num }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">{{ num }}</a>
     </li>
     {% endfor %}
     {% if page_obj.has_next %}
     <li class="page-item">
-      <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">»</a>
+      <a class="page-link" href="?scope={{ scope_filter }}&page={{ page_obj.next_page_number }}{% if season_filter %}&season={{ season_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">»</a>
     </li>
     {% endif %}
   </ul>
