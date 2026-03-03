@@ -8,6 +8,7 @@ urlpatterns = [
     path("cikis/", views.logout_view, name="logout"),
     path("aktivite/ekle/", views.log_activity, name="log_activity"),
     path("aktivite/liste/", views.activity_list, name="activity_list"),
+    path("aktivite/<int:pk>/sil/", views.delete_activity, name="delete_activity"),
     path("siralama/", views.leaderboard, name="leaderboard"),
     path("meydan-oku/", views.tag_player, name="tag_player"),
     path("meydan-okumalar/", views.tag_list, name="tag_list"),

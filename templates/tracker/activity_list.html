@@ -66,6 +66,7 @@
           <th>Notlar</th>
           <th>Sezon</th>
           <th>Durum</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -90,9 +91,17 @@
               <span class="badge bg-secondary">Bekliyor</span>
             {% endif %}
           </td>
+          <td>
+            {% if a.player == current_player %}
+            <form method="post" action="{% url 'delete_activity' a.pk %}" onsubmit="return confirm('Bu aktiviteyi silmek istediğine emin misin? {{ a.total_points }} puan düşülecek.');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger">Sil</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-4">Aktivite bulunamadı.</td></tr>
         {% endfor %}
       </tbody>
     </table>
