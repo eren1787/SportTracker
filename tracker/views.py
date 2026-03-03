@@ -396,6 +396,27 @@ def activity_list(request):
 
 
 # ---------------------------------------------------------------------------
+# Delete Activity
+# ---------------------------------------------------------------------------
+
+def delete_activity(request, pk):
+    redir = _require_login(request)
+    if redir:
+        return redir
+
+    player = _get_player(request)
+    activity = get_object_or_404(Activity, pk=pk, player=player)
+
+    if request.method == "POST":
+        _update_season_points(player, activity.season, -activity.total_points)
+        activity.delete()
+        messages.success(request, f"Aktivite silindi. -{activity.total_points} puan düşüldü.")
+        return redirect("activity_list")
+
+    return redirect("activity_list")
+
+
+# ---------------------------------------------------------------------------
 # Leaderboard
 # ---------------------------------------------------------------------------
 

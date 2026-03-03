@@ -94,6 +94,17 @@ class ActivityAdmin(admin.ModelAdmin):
     search_fields = ["player__name"]
     date_hierarchy = "date"
 
+    def delete_model(self, request, obj):
+        from .services import _update_season_points
+        _update_season_points(obj.player, obj.season, -obj.total_points)
+        obj.delete()
+
+    def delete_queryset(self, request, queryset):
+        from .services import _update_season_points
+        for activity in queryset.select_related("player", "season"):
+            _update_season_points(activity.player, activity.season, -activity.total_points)
+        queryset.delete()
+
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
