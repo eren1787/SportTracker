@@ -677,69 +677,71 @@ def feed(request):
     all_items = []
     _STATUS_TR = {"pending": "Bekliyor", "responded": "Yanıtlandı", "expired": "Süresi Doldu"}
 
-    if season:
-        expire_overdue_tags()
-        membership = TeamMembership.objects.filter(player=player, season=season).first()
+    expire_overdue_tags()
 
-        for a in Activity.objects.filter(player=player, season=season).order_by("-created_at"):
-            all_items.append({
-                "kind": "activity",
-                "timestamp": a.created_at,
-                "date": a.date,
-                "label": a.get_activity_type_display(),
-                "points": a.total_points,
-                "activity_type": a.activity_type,
-                "player_name": None,
-                "player_id": None,
-                "status_label": None,
-            })
+    for a in Activity.objects.filter(player=player).select_related("season").order_by("-created_at"):
+        all_items.append({
+            "kind": "activity",
+            "timestamp": a.created_at,
+            "date": a.date,
+            "label": a.get_activity_type_display(),
+            "points": a.total_points,
+            "activity_type": a.activity_type,
+            "player_name": None,
+            "player_id": None,
+            "status_label": None,
+            "season_name": str(a.season),
+        })
 
-        for adj in PointAdjustment.objects.filter(player=player, season=season).order_by("-created_at"):
-            all_items.append({
-                "kind": "adjustment",
-                "timestamp": adj.created_at,
-                "date": adj.created_at.date(),
-                "label": adj.get_reason_display(),
-                "points": adj.points,
-                "activity_type": None,
-                "player_name": None,
-                "player_id": None,
-                "status_label": None,
-            })
+    for adj in PointAdjustment.objects.filter(player=player).select_related("season").order_by("-created_at"):
+        all_items.append({
+            "kind": "adjustment",
+            "timestamp": adj.created_at,
+            "date": adj.created_at.date(),
+            "label": adj.get_reason_display(),
+            "points": adj.points,
+            "activity_type": None,
+            "player_name": None,
+            "player_id": None,
+            "status_label": None,
+            "season_name": str(adj.season),
+        })
 
-        for tag in Tag.objects.filter(season=season).select_related("tagger", "tagged").order_by("-created_at"):
-            all_items.append({
-                "kind": "tag_event",
-                "timestamp": tag.created_at,
-                "date": tag.created_at.date(),
-                "label": f"{tag.tagger.name} → {tag.tagged.name}",
-                "points": None,
-                "activity_type": None,
-                "tagger_name": tag.tagger.name,
-                "tagger_id": tag.tagger.pk,
-                "tagged_name": tag.tagged.name,
-                "tagged_id": tag.tagged.pk,
-                "player_name": None,
-                "player_id": None,
-                "status_label": _STATUS_TR.get(tag.status, tag.status),
-            })
+    for tag in Tag.objects.all().select_related("tagger", "tagged", "season").order_by("-created_at"):
+        all_items.append({
+            "kind": "tag_event",
+            "timestamp": tag.created_at,
+            "date": tag.created_at.date(),
+            "label": f"{tag.tagger.name} → {tag.tagged.name}",
+            "points": None,
+            "activity_type": None,
+            "tagger_name": tag.tagger.name,
+            "tagger_id": tag.tagger.pk,
+            "tagged_name": tag.tagged.name,
+            "tagged_id": tag.tagged.pk,
+            "player_name": None,
+            "player_id": None,
+            "status_label": _STATUS_TR.get(tag.status, tag.status),
+            "season_name": str(tag.season),
+        })
 
-        for a in Activity.objects.filter(
-            season=season, is_approved=True
-        ).exclude(player=player).select_related("player").order_by("-created_at"):
-            all_items.append({
-                "kind": "opponent_activity",
-                "timestamp": a.created_at,
-                "date": a.date,
-                "label": a.get_activity_type_display(),
-                "points": a.total_points,
-                "activity_type": a.activity_type,
-                "player_name": a.player.name,
-                "player_id": a.player.pk,
-                "status_label": None,
-            })
+    for a in Activity.objects.filter(
+        is_approved=True
+    ).exclude(player=player).select_related("player", "season").order_by("-created_at"):
+        all_items.append({
+            "kind": "opponent_activity",
+            "timestamp": a.created_at,
+            "date": a.date,
+            "label": a.get_activity_type_display(),
+            "points": a.total_points,
+            "activity_type": a.activity_type,
+            "player_name": a.player.name,
+            "player_id": a.player.pk,
+            "status_label": None,
+            "season_name": str(a.season),
+        })
 
-        all_items.sort(key=lambda x: x["timestamp"], reverse=True)
+    all_items.sort(key=lambda x: x["timestamp"], reverse=True)
 
     paginator = Paginator(all_items, 30)
     page_obj = paginator.get_page(request.GET.get("page"))

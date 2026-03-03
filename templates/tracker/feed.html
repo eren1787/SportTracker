@@ -9,15 +9,15 @@
 </div>
 
 {% if not season %}
-<div class="alert alert-warning">Şu an aktif bir sezon bulunmuyor.</div>
-{% else %}
+<div class="alert alert-info mb-3">Şu an aktif bir sezon bulunmuyor. Geçmiş hareketler aşağıda gösteriliyor.</div>
+{% endif %}
 
 <div class="card">
   <div class="card-body p-0">
     <table class="table table-hover mb-0">
       <thead class="table-light">
         <tr>
-          <th style="width:110px;">Tarih</th>
+          <th style="width:120px;">Tarih</th>
           <th style="width:160px;">Oyuncu</th>
           <th>Hareket</th>
           <th style="width:80px;">Puan</th>
@@ -26,7 +26,10 @@
       <tbody>
         {% for item in page_obj %}
         <tr>
-          <td class="text-nowrap text-muted small align-middle">{{ item.date }}</td>
+          <td class="text-nowrap text-muted small align-middle">
+            {{ item.date }}
+            <br><span class="text-muted" style="font-size:0.7rem;">{{ item.season_name }}</span>
+          </td>
           <td class="align-middle">
             {% if item.kind == "opponent_activity" %}
               <a href="{% url 'player_profile' item.player_id %}" class="fw-semibold text-decoration-none">{{ item.player_name }}</a>
@@ -92,7 +95,5 @@
     {% endif %}
   </ul>
 </nav>
-{% endif %}
-
 {% endif %}
 {% endblock %}
