@@ -63,8 +63,8 @@
           <div class="display-4 mb-2">{{ m.player.name|slice:":1"|upper }}</div>
           <h6 class="card-title">{{ m.player.name }}</h6>
           <small class="text-muted d-block mb-3">{{ m.season_points }} puan</small>
-          <button class="btn btn-sm btn-danger"
-                  onclick="openConfirm('{{ m.player.pk }}', '{{ m.player.name }}')"
+          <button class="btn btn-sm btn-danger js-challenge"
+                  data-player-id="{{ m.player.pk }}" data-player-name="{{ m.player.name }}"
                   data-bs-toggle="modal" data-bs-target="#confirmModal">
             Meydan Oku
           </button>
@@ -100,10 +100,13 @@
 
 {% block extra_js %}
 <script>
-function openConfirm(id, name) {
-  document.getElementById('modal-player-id').value = id;
-  document.getElementById('modal-player-name').textContent = name;
-}
+// Wire challenge buttons via data attributes so player names never enter a JS/HTML sink.
+document.querySelectorAll('.js-challenge').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.getElementById('modal-player-id').value = this.dataset.playerId;
+    document.getElementById('modal-player-name').textContent = this.dataset.playerName;
+  });
+});
 
 // Live countdown for the 30-minute challenge window
 const countdownEl = document.getElementById('challenge-countdown');

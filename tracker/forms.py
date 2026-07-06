@@ -5,9 +5,13 @@ from .models import ACTIVITY_CHOICES, Player
 
 class ActivityForm(forms.Form):
     activity_type = forms.ChoiceField(choices=ACTIVITY_CHOICES, label="Aktivite Türü")
-    duration_minutes = forms.IntegerField(min_value=1, required=False, label="Süre (dakika)")
+    # max 600 min (10h) caps hf_disk at 30 points; blocks 999999-min point inflation.
+    duration_minutes = forms.IntegerField(
+        min_value=1, max_value=600, required=False, label="Süre (dakika)"
+    )
     notes = forms.CharField(
         required=False,
+        max_length=1000,
         widget=forms.Textarea(attrs={"rows": 2}),
         label="Notlar",
     )

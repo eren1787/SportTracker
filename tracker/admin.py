@@ -33,8 +33,11 @@ class PlayerAdmin(admin.ModelAdmin):
 
 class TeamMembershipInline(admin.TabularInline):
     model = TeamMembership
-    # Only expose the player; season is auto-filled from the team on save
+    # Only expose the player; season is auto-filled from the team on save.
+    # season_points is a derived counter — read-only so edits can't desync
+    # it from Player.total_points. Corrections go through PointAdjustment.
     fields = ["player", "season_points"]
+    readonly_fields = ["season_points"]
     autocomplete_fields = ["player"]
     extra = 8  # empty rows ready to fill in one go
 
@@ -78,6 +81,8 @@ class TeamMembershipAdmin(admin.ModelAdmin):
     list_display = ["player", "team", "season", "season_points"]
     list_filter = ["season", "team"]
     search_fields = ["player__name"]
+    # Derived counter — edit points via PointAdjustment, not here.
+    readonly_fields = ["season_points"]
 
 
 @admin.register(WeeklyGoal)
@@ -94,16 +99,28 @@ class ActivityAdmin(admin.ModelAdmin):
     search_fields = ["player__name"]
     date_hierarchy = "date"
 
-    def delete_model(self, request, obj):
+    def save_model(self, request, obj, form, change):
+        # Keep Player/TeamMembership totals in sync when points or approval change.
+        # Unapproved activities count as 0 points (weekly sums filter is_approved=True).
         from .services import _update_season_points
-        _update_season_points(obj.player, obj.season, -obj.total_points)
-        obj.delete()
+        old_pts = 0
+        if change:
+            prev = Activity.objects.filter(pk=obj.pk).first()
+            if prev and prev.is_approved:
+                old_pts = prev.total_points
+        super().save_model(request, obj, form, change)
+        new_pts = obj.total_points if obj.is_approved else 0
+        if new_pts != old_pts:
+            _update_season_points(obj.player, obj.season, new_pts - old_pts)
+
+    def delete_model(self, request, obj):
+        from .services import delete_activity_and_sync
+        delete_activity_and_sync(obj)
 
     def delete_queryset(self, request, queryset):
-        from .services import _update_season_points
+        from .services import delete_activity_and_sync
         for activity in queryset.select_related("player", "season"):
-            _update_season_points(activity.player, activity.season, -activity.total_points)
-        queryset.delete()
+            delete_activity_and_sync(activity)
 
 
 @admin.register(Tag)
@@ -118,3 +135,28 @@ class PointAdjustmentAdmin(admin.ModelAdmin):
     list_display = ["player", "season", "reason", "points", "week_number", "created_at"]
     list_filter = ["season", "reason"]
     search_fields = ["player__name"]
+
+    # Manual adjustments must move the player's totals too, so an admin "+5 manual"
+    # actually shows on the leaderboard. Service-created rows use .objects.create()
+    # and never hit these hooks, so there is no double counting.
+    def save_model(self, request, obj, form, change):
+        from .services import _update_season_points
+        old_pts = 0
+        if change:
+            prev = PointAdjustment.objects.filter(pk=obj.pk).first()
+            if prev:
+                old_pts = prev.points
+        super().save_model(request, obj, form, change)
+        if obj.points != old_pts:
+            _update_season_points(obj.player, obj.season, obj.points - old_pts)
+
+    def delete_model(self, request, obj):
+        from .services import _update_season_points
+        _update_season_points(obj.player, obj.season, -obj.points)
+        obj.delete()
+
+    def delete_queryset(self, request, queryset):
+        from .services import _update_season_points
+        for adj in queryset.select_related("player", "season"):
+            _update_season_points(adj.player, adj.season, -adj.points)
+        queryset.delete()

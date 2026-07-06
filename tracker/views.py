@@ -1,7 +1,8 @@
-from datetime import timedelta, date
+from datetime import timedelta
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Sum, Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -13,8 +14,8 @@ from .models import (
 )
 from .services import (
     calculate_points, can_player_challenge, check_weekly_goals,
-    expire_overdue_tags, get_current_week_number, resolve_tag_on_activity,
-    _update_season_points,
+    delete_activity_and_sync, expire_overdue_tags, get_current_week_number,
+    resolve_tag_on_activity, _update_season_points,
 )
 
 
@@ -301,19 +302,20 @@ def log_activity(request):
         if not result["valid"]:
             form.add_error("duration_minutes", result["error"])
         else:
-            activity = Activity.objects.create(
-                player=player,
-                season=season,
-                activity_type=activity_type,
-                date=date.today(),
-                duration_minutes=duration,
-                notes=form.cleaned_data.get("notes", ""),
-                total_points=result["total"],
-            )
-            _update_season_points(player, season, result["total"])
-            resolve_tag_on_activity(activity)
-            week_number = get_current_week_number(season)
-            check_weekly_goals(player, season, week_number)
+            with transaction.atomic():
+                activity = Activity.objects.create(
+                    player=player,
+                    season=season,
+                    activity_type=activity_type,
+                    date=timezone.localdate(),  # project TZ, not UTC server date
+                    duration_minutes=duration,
+                    notes=form.cleaned_data.get("notes", ""),
+                    total_points=result["total"],
+                )
+                _update_season_points(player, season, result["total"])
+                resolve_tag_on_activity(activity)
+                week_number = get_current_week_number(season)
+                check_weekly_goals(player, season, week_number)
             messages.success(request, f"Aktivite kaydedildi! +{result['total']} puan kazandın.")
             # Give the player their 30-minute challenge window immediately.
             can_tag, _ = can_player_challenge(player, season)
@@ -403,9 +405,9 @@ def delete_activity(request, pk):
     activity = get_object_or_404(Activity, pk=pk, player=player)
 
     if request.method == "POST":
-        _update_season_points(player, activity.season, -activity.total_points)
-        activity.delete()
-        messages.success(request, f"Aktivite silindi. -{activity.total_points} puan düşüldü.")
+        points = activity.total_points
+        if delete_activity_and_sync(activity):
+            messages.success(request, f"Aktivite silindi. -{points} puan düşüldü.")
         return redirect("activity_list")
 
     return redirect("activity_list")

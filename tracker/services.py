@@ -46,12 +46,15 @@ def calculate_points(activity_type: str, duration_minutes: int | None = None) ->
 # Season week helpers
 # ---------------------------------------------------------------------------
 
-def get_current_week_number(season: Season) -> int:
-    """Returns 1 or 2 depending on how far we are into the season."""
-    from datetime import date
-    today = date.today()
-    delta = (today - season.start_date).days
-    return 1 if delta < 7 else 2
+def get_current_week_number(season: Season, on_date=None) -> int:
+    """
+    1-based week index into the season for the given date (default: today in the
+    project timezone). Days 0-6 -> week 1, 7-13 -> week 2, 14+ -> week 3, etc.
+    Dates before the season start clamp to week 1.
+    """
+    on = on_date or timezone.localdate()
+    delta = (on - season.start_date).days
+    return max(1, delta // 7 + 1)
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +109,7 @@ def resolve_tag_on_activity(activity: Activity):
             points=+1,
             description=f"{pending_tag.tagger.name} meydan okumasına yanıt bonusu",
             related_tag=pending_tag,
+            week_number=get_current_week_number(activity.season, on_date=activity.date),
         )
         _update_season_points(activity.player, activity.season, +1)
 
@@ -116,7 +120,10 @@ def expire_overdue_tags() -> int:
     Returns the count of tags expired.
     """
     now = timezone.now()
-    overdue = Tag.objects.filter(status="pending", expires_at__lte=now).select_related("season", "tagger", "tagged")
+    # Only touch active seasons — never mutate standings after a season is closed.
+    overdue = Tag.objects.filter(
+        status="pending", expires_at__lte=now, season__is_active=True,
+    ).select_related("season", "tagger", "tagged")
     count = 0
     for tag in overdue:
         # Atomic claim: only one concurrent request may expire a tag and apply the penalty.
@@ -194,14 +201,11 @@ def can_player_challenge(player: Player, season: Season) -> tuple:
 # Weekly goals
 # ---------------------------------------------------------------------------
 
-def check_weekly_goals(player: Player, season: Season, week_number: int):
-    """
-    After any activity: if ALL weekly goals are met and the bonus hasn't been
-    awarded yet, create a +3 PointAdjustment.
-    """
+def _weekly_goals_met(player: Player, season: Season, week_number: int) -> bool:
+    """True only if the season has goals for the week and the player meets them all."""
     goals = WeeklyGoal.objects.filter(season=season, week_number=week_number)
     if not goals.exists():
-        return
+        return False
 
     week_start = season.start_date + timedelta(weeks=week_number - 1)
     week_end = week_start + timedelta(days=6)
@@ -217,7 +221,7 @@ def check_weekly_goals(player: Player, season: Season, week_number: int):
                 date__lte=week_end,
             ).count()
             if count < goal.required_count:
-                return
+                return False
         elif goal.min_points:
             pts = (
                 Activity.objects.filter(
@@ -230,9 +234,20 @@ def check_weekly_goals(player: Player, season: Season, week_number: int):
                 or 0
             )
             if pts < goal.min_points:
-                return
+                return False
 
-    # All goals met — get_or_create so concurrent requests can't double-award.
+    return True
+
+
+def check_weekly_goals(player: Player, season: Season, week_number: int):
+    """
+    After any activity: if ALL weekly goals are met and the bonus hasn't been
+    awarded yet, create a +3 PointAdjustment.
+    """
+    if not _weekly_goals_met(player, season, week_number):
+        return
+
+    # get_or_create + the DB unique constraint make this race-safe.
     _, created = PointAdjustment.objects.get_or_create(
         player=player,
         season=season,
@@ -245,6 +260,64 @@ def check_weekly_goals(player: Player, season: Season, week_number: int):
     )
     if created:
         _update_season_points(player, season, +3)
+
+
+# ---------------------------------------------------------------------------
+# Activity deletion — unwind side effects
+# ---------------------------------------------------------------------------
+
+def revert_activity_side_effects(activity: Activity):
+    """
+    Undo point-bearing side effects an activity created, so it can't be farmed by
+    log→earn-bonus→delete. Call this while the activity still exists (before delete):
+
+    - Tag it answered: reopen the tag to 'pending', drop the +1 tag_bonus, -1 points.
+
+    The weekly-goal bonus is revoked separately (after delete) via
+    revoke_weekly_goal_bonus_if_unmet, since that check counts activities.
+    """
+    tag = Tag.objects.filter(responding_activity=activity, bonus_awarded=True).first()
+    if tag:
+        Tag.objects.filter(pk=tag.pk).update(
+            status="pending", responding_activity=None, bonus_awarded=False,
+        )
+        removed = PointAdjustment.objects.filter(
+            related_tag=tag, reason="tag_bonus",
+        ).delete()[0]
+        if removed:
+            _update_season_points(activity.player, activity.season, -1)
+
+
+def revoke_weekly_goal_bonus_if_unmet(player: Player, season: Season, week_number: int):
+    """After an activity is removed, drop the week's goal bonus if goals no longer hold."""
+    if _weekly_goals_met(player, season, week_number):
+        return
+    removed = PointAdjustment.objects.filter(
+        player=player, season=season, reason="weekly_goal_bonus", week_number=week_number,
+    ).delete()[0]
+    if removed:
+        _update_season_points(player, season, -3 * removed)
+
+
+def delete_activity_and_sync(activity: Activity) -> bool:
+    """
+    Delete an activity and unwind every point it caused, atomically and idempotently.
+    Returns True if this call was the one that deleted the row. Shared by the player
+    delete view and the admin so both stay consistent.
+    """
+    from django.db import transaction
+
+    player = activity.player
+    season = activity.season
+    points = activity.total_points
+    week_number = get_current_week_number(season, on_date=activity.date)
+    with transaction.atomic():
+        revert_activity_side_effects(activity)
+        deleted, _ = Activity.objects.filter(pk=activity.pk).delete()
+        if deleted:
+            _update_season_points(player, season, -points)
+            revoke_weekly_goal_bonus_if_unmet(player, season, week_number)
+    return bool(deleted)
 
 
 # ---------------------------------------------------------------------------

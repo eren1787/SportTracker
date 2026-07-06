@@ -524,3 +524,129 @@ class TagPlayerViewTargetTest(TestCase):
     def test_cannot_tag_self(self):
         self.client.post("/meydan-oku/", {"tagged_player_id": self.me.pk})
         self.assertFalse(Tag.objects.exists())
+
+
+# ---------------------------------------------------------------------------
+# Anti-farming: deleting an activity unwinds the bonuses it earned
+# ---------------------------------------------------------------------------
+
+from .forms import ActivityForm
+from .services import get_current_week_number
+
+
+class DeleteActivityUnwindTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.team_a = make_team(self.season, "A")
+        self.team_b = make_team(self.season, "B")
+        self.me = make_player("Me")
+        self.rival = make_player("Rival")
+        self.mem = make_membership(self.me, self.team_a, self.season)
+        make_membership(self.rival, self.team_b, self.season)
+        session = self.client.session
+        session["player_id"] = self.me.pk
+        session.save()
+
+    def _log_training(self):
+        self.client.post("/aktivite/ekle/", {"activity_type": "training"})
+        return Activity.objects.get(player=self.me, season=self.season)
+
+    def test_deleting_tag_response_reverts_bonus_and_reopens_tag(self):
+        tag = Tag.objects.create(
+            tagger=self.rival, tagged=self.me, season=self.season,
+            expires_at=timezone.now() + timedelta(hours=48),
+        )
+        activity = self._log_training()  # 4 pts + resolves tag (+1)
+        tag.refresh_from_db()
+        self.assertEqual(tag.status, "responded")
+        self.me.refresh_from_db(); self.mem.refresh_from_db()
+        self.assertEqual(self.me.total_points, 5)
+        self.assertEqual(self.mem.season_points, 5)
+
+        self.client.post(f"/aktivite/{activity.pk}/sil/")
+
+        tag.refresh_from_db()
+        self.assertEqual(tag.status, "pending")
+        self.assertFalse(tag.bonus_awarded)
+        self.assertFalse(PointAdjustment.objects.filter(reason="tag_bonus").exists())
+        self.me.refresh_from_db(); self.mem.refresh_from_db()
+        self.assertEqual(self.me.total_points, 0)
+        self.assertEqual(self.mem.season_points, 0)
+
+    def test_deleting_activity_revokes_now_unmet_weekly_goal_bonus(self):
+        WeeklyGoal.objects.create(
+            season=self.season, week_number=1, description="10 puan",
+            min_points=4,
+        )
+        activity = self._log_training()  # 4 pts, meets goal -> +3 bonus
+        self.assertTrue(PointAdjustment.objects.filter(reason="weekly_goal_bonus").exists())
+        self.me.refresh_from_db()
+        self.assertEqual(self.me.total_points, 7)
+
+        self.client.post(f"/aktivite/{activity.pk}/sil/")
+
+        self.assertFalse(PointAdjustment.objects.filter(reason="weekly_goal_bonus").exists())
+        self.me.refresh_from_db(); self.mem.refresh_from_db()
+        self.assertEqual(self.me.total_points, 0)
+        self.assertEqual(self.mem.season_points, 0)
+
+    def test_double_delete_does_not_double_deduct(self):
+        activity = self._log_training()
+        self.me.refresh_from_db()
+        self.assertEqual(self.me.total_points, 4)
+        self.client.post(f"/aktivite/{activity.pk}/sil/")
+        # Second POST hits a 404 (row gone) — must not deduct again.
+        self.client.post(f"/aktivite/{activity.pk}/sil/")
+        self.me.refresh_from_db(); self.mem.refresh_from_db()
+        self.assertEqual(self.me.total_points, 0)
+        self.assertEqual(self.mem.season_points, 0)
+
+
+class AdminSyncTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.team = make_team(self.season)
+        self.player = make_player("P")
+        self.mem = make_membership(self.player, self.team, self.season)
+
+    def test_unapproving_activity_in_admin_removes_points(self):
+        from django.contrib.admin.sites import site
+        from .admin import ActivityAdmin
+        from .services import _update_season_points
+        activity = make_activity(self.player, self.season, points=4)
+        _update_season_points(self.player, self.season, 4)
+        adm = ActivityAdmin(Activity, site)
+        activity.is_approved = False
+        adm.save_model(request=None, obj=activity, form=None, change=True)
+        self.player.refresh_from_db(); self.mem.refresh_from_db()
+        self.assertEqual(self.player.total_points, 0)
+        self.assertEqual(self.mem.season_points, 0)
+
+
+class MiscHardeningTest(TestCase):
+    def test_duration_over_600_rejected(self):
+        form = ActivityForm({"activity_type": "hf_disk", "duration_minutes": 999999})
+        self.assertFalse(form.is_valid())
+        self.assertIn("duration_minutes", form.errors)
+
+    def test_week_number_generalizes_past_two_weeks(self):
+        season = make_season(days_ago=14)  # today is day 14
+        self.assertEqual(get_current_week_number(season), 3)
+
+    def test_tag_bonus_adjustment_has_week_number(self):
+        season = make_season()
+        tagger, tagged = make_player("T"), make_player("U")
+        Tag.objects.create(tagger=tagger, tagged=tagged, season=season,
+                           expires_at=timezone.now() + timedelta(hours=48))
+        activity = make_activity(tagged, season, points=4)
+        resolve_tag_on_activity(activity)
+        adj = PointAdjustment.objects.get(reason="tag_bonus")
+        self.assertIsNotNone(adj.week_number)
+
+    def test_expire_skips_closed_season(self):
+        season = make_season(is_active=False)
+        tagger, tagged = make_player("T2"), make_player("U2")
+        Tag.objects.create(tagger=tagger, tagged=tagged, season=season,
+                           expires_at=timezone.now() - timedelta(hours=1))
+        self.assertEqual(expire_overdue_tags(), 0)
+        self.assertFalse(PointAdjustment.objects.filter(reason="tag_penalty").exists())

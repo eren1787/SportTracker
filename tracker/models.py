@@ -202,6 +202,15 @@ class PointAdjustment(models.Model):
         indexes = [
             models.Index(fields=["player", "season", "week_number"]),
         ]
+        constraints = [
+            # One weekly-goal bonus per player/season/week — makes the get_or_create
+            # in check_weekly_goals safe against concurrent activity submissions.
+            models.UniqueConstraint(
+                fields=["player", "season", "week_number"],
+                condition=models.Q(reason="weekly_goal_bonus"),
+                name="uniq_weekly_goal_bonus_per_week",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.player.name} {self.points:+d} ({self.get_reason_display()})"
