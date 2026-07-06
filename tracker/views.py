@@ -52,10 +52,10 @@ def login_view(request):
     if request.method == "POST":
         player_id = request.POST.get("player_id")
         try:
-            player = Player.objects.get(pk=player_id, is_active=True)
+            player = Player.objects.get(pk=int(player_id), is_active=True)
             request.session["player_id"] = player.pk
             return redirect("dashboard")
-        except Player.DoesNotExist:
+        except (Player.DoesNotExist, TypeError, ValueError):
             messages.error(request, "Geçersiz oyuncu seçimi.")
 
     players = Player.objects.filter(is_active=True).order_by("name")
@@ -242,13 +242,7 @@ def dashboard(request):
                 ).count()
                 goals_status[goal.pk] = count >= goal.required_count
             elif goal.min_points:
-                pts = (
-                    Activity.objects.filter(
-                        player=player, season=season, is_approved=True,
-                        date__gte=week_start, date__lte=week_end,
-                    ).aggregate(t=Sum("total_points"))["t"] or 0
-                )
-                goals_status[goal.pk] = pts >= goal.min_points
+                goals_status[goal.pk] = activity_pts >= goal.min_points
 
         # Team standings
         teams = Team.objects.filter(season=season).prefetch_related(
@@ -259,8 +253,9 @@ def dashboard(request):
         )
         team_standings = []
         for team in teams:
-            total = team.memberships.aggregate(s=Sum("season_points"))["s"] or 0
-            team_standings.append({"team": team, "total": total, "members": list(team.memberships.all())})
+            members = list(team.memberships.all())
+            total = sum(m.season_points for m in members)
+            team_standings.append({"team": team, "total": total, "members": members})
 
     return render(request, "tracker/dashboard.html", {
         "player": player,
@@ -436,8 +431,9 @@ def leaderboard(request):
             )
         )
         for team in teams:
-            total = team.memberships.aggregate(s=Sum("season_points"))["s"] or 0
-            team_standings.append({"team": team, "total": total, "members": list(team.memberships.all())})
+            members = list(team.memberships.all())
+            total = sum(m.season_points for m in members)
+            team_standings.append({"team": team, "total": total, "members": members})
 
     past_seasons = Season.objects.filter(is_active=False).order_by("-number")[:5]
     return render(request, "tracker/leaderboard.html", {
@@ -516,14 +512,13 @@ def tag_player(request):
             return redirect("tag_player")
 
         tagged_player_id = request.POST.get("tagged_player_id")
+        # Only opponents from the taggable list can be targeted — blocks tagging
+        # teammates, yourself, or players already challenged in the last 48h.
         try:
-            tagged_player = Player.objects.get(pk=int(tagged_player_id))
-        except (Player.DoesNotExist, TypeError, ValueError):
-            messages.error(request, "Oyuncu bulunamadı.")
-            return redirect("tag_player")
-
-        if tagged_player.pk in recently_tagged_ids:
-            messages.error(request, "Bu oyuncu zaten meydan okunmuş durumda (48 saat beklenmeli).")
+            target_membership = taggable.get(player_id=int(tagged_player_id))
+            tagged_player = target_membership.player
+        except (TeamMembership.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Bu oyuncuya meydan okuyamazsın.")
             return redirect("tag_player")
 
         Tag.objects.create(
@@ -586,8 +581,9 @@ def season_detail(request, pk):
     )
     team_data = []
     for team in teams:
-        total = team.memberships.aggregate(s=Sum("season_points"))["s"] or 0
-        team_data.append({"team": team, "total": total, "members": list(team.memberships.all())})
+        members = list(team.memberships.all())
+        total = sum(m.season_points for m in members)
+        team_data.append({"team": team, "total": total, "members": members})
 
     tags = Tag.objects.filter(season=season).select_related("tagger", "tagged").order_by("-created_at")
 
@@ -621,6 +617,13 @@ def weekly_goals(request):
     goals_status = {}
     goals_progress = {}
 
+    week_pts = (
+        Activity.objects.filter(
+            player=player, season=season, is_approved=True,
+            date__gte=week_start, date__lte=week_end,
+        ).aggregate(t=Sum("total_points"))["t"] or 0
+    )
+
     for goal in goals:
         if goal.activity_type:
             count = Activity.objects.filter(
@@ -631,21 +634,8 @@ def weekly_goals(request):
             goals_progress[goal.pk] = {"current": count, "required": goal.required_count}
             goals_status[goal.pk] = count >= goal.required_count
         elif goal.min_points:
-            pts = (
-                Activity.objects.filter(
-                    player=player, season=season, is_approved=True,
-                    date__gte=week_start, date__lte=week_end,
-                ).aggregate(t=Sum("total_points"))["t"] or 0
-            )
-            goals_progress[goal.pk] = {"current": pts, "required": goal.min_points}
-            goals_status[goal.pk] = pts >= goal.min_points
-
-    week_pts = (
-        Activity.objects.filter(
-            player=player, season=season, is_approved=True,
-            date__gte=week_start, date__lte=week_end,
-        ).aggregate(t=Sum("total_points"))["t"] or 0
-    )
+            goals_progress[goal.pk] = {"current": week_pts, "required": goal.min_points}
+            goals_status[goal.pk] = week_pts >= goal.min_points
 
     return render(request, "tracker/weekly_goals.html", {
         "season": season,
@@ -700,7 +690,10 @@ def feed(request):
 
     expire_overdue_tags()
 
-    for a in Activity.objects.filter(player=player).select_related("season").order_by("-created_at"):
+    # ponytail: cap each feed source at 200 rows; raise if history ever outgrows it
+    FEED_CAP = 200
+
+    for a in Activity.objects.filter(player=player).select_related("season").order_by("-created_at")[:FEED_CAP]:
         all_items.append({
             "kind": "activity",
             "timestamp": a.created_at,
@@ -714,7 +707,7 @@ def feed(request):
             "season_name": str(a.season),
         })
 
-    for adj in PointAdjustment.objects.filter(player=player).select_related("season").order_by("-created_at"):
+    for adj in PointAdjustment.objects.filter(player=player).select_related("season").order_by("-created_at")[:FEED_CAP]:
         all_items.append({
             "kind": "adjustment",
             "timestamp": adj.created_at,
@@ -728,7 +721,7 @@ def feed(request):
             "season_name": str(adj.season),
         })
 
-    for tag in Tag.objects.all().select_related("tagger", "tagged", "season").order_by("-created_at"):
+    for tag in Tag.objects.all().select_related("tagger", "tagged", "season").order_by("-created_at")[:FEED_CAP]:
         all_items.append({
             "kind": "tag_event",
             "timestamp": tag.created_at,
@@ -748,7 +741,7 @@ def feed(request):
 
     for a in Activity.objects.filter(
         is_approved=True
-    ).exclude(player=player).select_related("player", "season").order_by("-created_at"):
+    ).exclude(player=player).select_related("player", "season").order_by("-created_at")[:FEED_CAP]:
         all_items.append({
             "kind": "opponent_activity",
             "timestamp": a.created_at,

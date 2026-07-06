@@ -81,6 +81,7 @@ def resolve_tag_on_activity(activity: Activity):
     pending_tag = (
         Tag.objects.filter(
             tagged=activity.player,
+            season=activity.season,
             status="pending",
             expires_at__gt=now,
         )
@@ -89,10 +90,14 @@ def resolve_tag_on_activity(activity: Activity):
     )
 
     if pending_tag and activity.total_points >= 2:
-        pending_tag.status = "responded"
-        pending_tag.responding_activity = activity
-        pending_tag.bonus_awarded = True
-        pending_tag.save()
+        # Atomic claim: only the request that flips pending→responded awards the bonus.
+        claimed = Tag.objects.filter(pk=pending_tag.pk, status="pending").update(
+            status="responded",
+            responding_activity=activity,
+            bonus_awarded=True,
+        )
+        if not claimed:
+            return
 
         PointAdjustment.objects.create(
             player=activity.player,
@@ -111,12 +116,15 @@ def expire_overdue_tags() -> int:
     Returns the count of tags expired.
     """
     now = timezone.now()
-    overdue = Tag.objects.filter(status="pending", expires_at__lte=now)
+    overdue = Tag.objects.filter(status="pending", expires_at__lte=now).select_related("season", "tagger", "tagged")
     count = 0
     for tag in overdue:
-        tag.status = "expired"
-        tag.penalty_applied = True
-        tag.save()
+        # Atomic claim: only one concurrent request may expire a tag and apply the penalty.
+        claimed = Tag.objects.filter(pk=tag.pk, status="pending").update(
+            status="expired", penalty_applied=True,
+        )
+        if not claimed:
+            continue
 
         week_number = get_current_week_number(tag.season)
         PointAdjustment.objects.create(
@@ -224,22 +232,18 @@ def check_weekly_goals(player: Player, season: Season, week_number: int):
             if pts < goal.min_points:
                 return
 
-    # All goals met
-    already = PointAdjustment.objects.filter(
+    # All goals met — get_or_create so concurrent requests can't double-award.
+    _, created = PointAdjustment.objects.get_or_create(
         player=player,
         season=season,
         reason="weekly_goal_bonus",
         week_number=week_number,
-    ).exists()
-    if not already:
-        PointAdjustment.objects.create(
-            player=player,
-            season=season,
-            reason="weekly_goal_bonus",
-            points=+3,
-            description=f"Hafta {week_number} tüm hedefler tamamlandı",
-            week_number=week_number,
-        )
+        defaults={
+            "points": +3,
+            "description": f"Hafta {week_number} tüm hedefler tamamlandı",
+        },
+    )
+    if created:
         _update_season_points(player, season, +3)
 
 

@@ -490,3 +490,37 @@ class ApplyWeeklyPenaltiesTest(TestCase):
         make_activity(self.player, self.season, points=12, approved=False)
         apply_weekly_penalties(self.season, 1)
         self.assertEqual(PointAdjustment.objects.filter(reason="weekly_penalty").count(), 1)
+
+
+# ---------------------------------------------------------------------------
+# tag_player view — target restriction
+# ---------------------------------------------------------------------------
+
+class TagPlayerViewTargetTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.team_a = make_team(self.season, "Team A")
+        self.team_b = make_team(self.season, "Team B")
+        self.me = make_player("Me")
+        self.teammate = make_player("Teammate")
+        self.opponent = make_player("Opponent")
+        make_membership(self.me, self.team_a, self.season)
+        make_membership(self.teammate, self.team_a, self.season)
+        make_membership(self.opponent, self.team_b, self.season)
+        # Earn the 30-minute challenge window
+        make_activity(self.me, self.season, points=4)
+        session = self.client.session
+        session["player_id"] = self.me.pk
+        session.save()
+
+    def test_can_tag_opponent(self):
+        self.client.post("/meydan-oku/", {"tagged_player_id": self.opponent.pk})
+        self.assertTrue(Tag.objects.filter(tagger=self.me, tagged=self.opponent).exists())
+
+    def test_cannot_tag_teammate(self):
+        self.client.post("/meydan-oku/", {"tagged_player_id": self.teammate.pk})
+        self.assertFalse(Tag.objects.exists())
+
+    def test_cannot_tag_self(self):
+        self.client.post("/meydan-oku/", {"tagged_player_id": self.me.pk})
+        self.assertFalse(Tag.objects.exists())

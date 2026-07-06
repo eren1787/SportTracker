@@ -133,6 +133,10 @@ class Activity(models.Model):
 
     class Meta:
         ordering = ["-date", "-created_at"]
+        indexes = [
+            models.Index(fields=["player", "season", "date"]),
+            models.Index(fields=["season", "-created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.player.name} – {self.get_activity_type_display()} ({self.date})"
@@ -163,6 +167,11 @@ class Tag(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "expires_at"]),
+            models.Index(fields=["tagged", "season", "status"]),
+            models.Index(fields=["tagger", "season", "status"]),
+        ]
 
     def __str__(self):
         return f"{self.tagger.name} → {self.tagged.name} ({self.status})"
@@ -190,6 +199,9 @@ class PointAdjustment(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["player", "season", "week_number"]),
+        ]
 
     def __str__(self):
         return f"{self.player.name} {self.points:+d} ({self.get_reason_display()})"

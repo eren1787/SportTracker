@@ -35,10 +35,13 @@ def _env_csv(name):
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "django-insecure-9(o*011r3wt!y^cugoz)#3c28p3v2rja+p4yje(-8an#7a5v(k",
-)
+# The insecure fallback is for local development only; deployments (Vercel)
+# must provide SECRET_KEY via environment.
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if os.getenv("VERCEL") or os.getenv("VERCEL_URL"):
+        raise RuntimeError("SECRET_KEY environment variable is required in production.")
+    SECRET_KEY = "django-insecure-9(o*011r3wt!y^cugoz)#3c28p3v2rja+p4yje(-8an#7a5v(k"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DEBUG", False)
@@ -161,6 +164,9 @@ SESSION_COOKIE_AGE = 86400 * 7  # 7 days
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+if not DEBUG:
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 LOGIN_URL = "/giris/"
 
