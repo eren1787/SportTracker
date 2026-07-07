@@ -23,7 +23,7 @@ BASE_POINTS = {
     "upper_body": 2,
     "lower_body_core_hiit": 3,
     "endurance": 3,
-    "other_sport": 1,
+    "other_sport": 2,
     "flexibility": 1,
     # hf_disk: duration-based (1 pt per 20 min), not in BASE_POINTS
 }

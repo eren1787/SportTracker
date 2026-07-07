@@ -104,10 +104,10 @@ class CalculatePointsTest(TestCase):
         self.assertTrue(result["valid"])
         self.assertEqual(result["total"], 2)
 
-    def test_other_sport_returns_1(self):
+    def test_other_sport_returns_2(self):
         result = calculate_points("other_sport")
         self.assertTrue(result["valid"])
-        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["total"], 2)
 
     def test_flexibility_returns_1(self):
         result = calculate_points("flexibility")
